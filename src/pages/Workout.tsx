@@ -79,7 +79,7 @@ const WorkoutPage = () => {
             <div className="grid grid-cols-3 gap-2 my-3">
               <div className="bg-secondary rounded-lg p-2 text-center">
                 <div className="text-[10px] text-muted-foreground uppercase">Sets × Reps</div>
-                <div className="font-mono font-semibold text-sm">{status === 'Green' ? ex.green_sets : ex.yellow_sets}</div>
+                <div className="font-mono font-semibold text-sm">{(status as string) === 'Green' ? ex.green_sets : ex.yellow_sets}</div>
               </div>
               <div className="bg-secondary rounded-lg p-2 text-center">
                 <div className="text-[10px] text-muted-foreground uppercase">Rest</div>
