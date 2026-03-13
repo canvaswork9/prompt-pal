@@ -195,7 +195,7 @@ const CheckinPage = () => {
         size="xl"
         className="w-full"
         disabled={saving}
-        onClick={save}
+        onClick={handleSave}
       >
         {saving ? '...' : t('analyze')}
       </Button>
