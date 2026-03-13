@@ -87,8 +87,10 @@ export function useCheckin() {
 
       setSubmitted(true);
       toast.success('Check-in saved!');
+      return true;
     } catch (err: any) {
       toast.error(err.message || 'Failed to save');
+      return false;
     } finally {
       setSaving(false);
     }

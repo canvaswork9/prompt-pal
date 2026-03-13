@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
@@ -7,11 +8,34 @@ import ReadinessRing from '@/components/ReadinessRing';
 import ResultCard from '@/components/ResultCard';
 import { useCheckin } from '@/hooks/useCheckin';
 import { useAuth } from '@/hooks/useAuth';
+import { useGamification, XP_AWARDS } from '@/hooks/useGamification';
+import XPBar from '@/components/XPBar';
+import XPToast from '@/components/XPToast';
+import LevelUpOverlay from '@/components/LevelUpOverlay';
 
 const CheckinPage = () => {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { data, setData, result, submitted, setSubmitted, loading, saving, save } = useCheckin();
+  const { data, setData, result, submitted, setSubmitted, loading, saving, save, existingId } = useCheckin();
+  const gam = useGamification();
+  const [xpToast, setXpToast] = useState<{ amount: number; reason: string } | null>(null);
+
+  const handleSave = async () => {
+    const isNew = !existingId;
+    const ok = await save();
+    if (ok && isNew) {
+      // Award XP for check-in
+      await gam.awardXP(XP_AWARDS.checkin, 'checkin', 'Daily check-in');
+      setXpToast({ amount: XP_AWARDS.checkin, reason: 'Daily Check-in' });
+      // Update streak
+      await gam.updateStreak();
+      // Bonus for green day
+      if (result.status === 'Green') {
+        await gam.awardXP(XP_AWARDS.green_day, 'green_day', 'Green readiness day');
+      }
+      await gam.reload();
+    }
+  };
 
   const cardDelay = (i: number) => ({ initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 }, transition: { delay: i * 0.08, duration: 0.4 } });
 
@@ -35,6 +59,14 @@ const CheckinPage = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
+      <LevelUpOverlay level={gam.levelUpTo} onDismiss={gam.dismissLevelUp} />
+      <XPToast amount={xpToast?.amount ?? null} reason={xpToast?.reason ?? ''} onDone={() => setXpToast(null)} />
+
+      {/* XP Bar */}
+      {!gam.loading && (
+        <XPBar totalXP={gam.totalXP} level={gam.level} streakDays={gam.streakDays} tierEmoji={gam.tierEmoji} tierName={gam.tierName} />
+      )}
+
       {/* Header */}
       <div className="space-y-1">
         <h1 className="text-display text-2xl sm:text-3xl">{t('greeting')}, {user?.email?.split('@')[0] || 'User'} 👋</h1>
@@ -163,7 +195,7 @@ const CheckinPage = () => {
         size="xl"
         className="w-full"
         disabled={saving}
-        onClick={save}
+        onClick={handleSave}
       >
         {saving ? '...' : t('analyze')}
       </Button>

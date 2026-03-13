@@ -1,0 +1,218 @@
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
+
+// ─── XP & Level Formulas ───
+const XP_PER_LEVEL = 200;
+const TIER_THRESHOLDS = [
+  { level: 1, name: 'Seedling', emoji: '🌱' },
+  { level: 5, name: 'Sprout', emoji: '🌿' },
+  { level: 10, name: 'Warrior', emoji: '⚔️' },
+  { level: 20, name: 'Champion', emoji: '🏆' },
+  { level: 30, name: 'Legend', emoji: '👑' },
+  { level: 50, name: 'Immortal', emoji: '💎' },
+];
+
+export function getTierForLevel(level: number) {
+  let tier = TIER_THRESHOLDS[0];
+  for (const t of TIER_THRESHOLDS) {
+    if (level >= t.level) tier = t;
+  }
+  return tier;
+}
+
+export function getLevelFromXP(xp: number) {
+  return Math.floor(xp / XP_PER_LEVEL) + 1;
+}
+
+export function getXPProgress(xp: number) {
+  const currentLevelXP = xp % XP_PER_LEVEL;
+  return { current: currentLevelXP, needed: XP_PER_LEVEL, pct: (currentLevelXP / XP_PER_LEVEL) * 100 };
+}
+
+// ─── XP Award amounts ───
+export const XP_AWARDS = {
+  checkin: 50,
+  workout_complete: 100,
+  green_day: 30,
+  streak_3: 75,
+  streak_7: 150,
+  streak_14: 300,
+  streak_30: 500,
+  new_pr: 200,
+} as const;
+
+// ─── Challenges ───
+export interface Challenge {
+  key: string;
+  title_en: string;
+  title_th: string;
+  desc_en: string;
+  desc_th: string;
+  target: number;
+  xp_reward: number;
+  icon: string;
+}
+
+export const CHALLENGES: Challenge[] = [
+  { key: 'streak_3', title_en: '3-Day Streak', title_th: 'เช็คอิน 3 วัน', desc_en: 'Check in 3 days in a row', desc_th: 'เช็คอินติดต่อกัน 3 วัน', target: 3, xp_reward: 75, icon: '🔥' },
+  { key: 'streak_7', title_en: 'Week Warrior', title_th: 'นักรบ 7 วัน', desc_en: 'Check in 7 days in a row', desc_th: 'เช็คอินติดต่อกัน 7 วัน', target: 7, xp_reward: 150, icon: '⚔️' },
+  { key: 'streak_14', title_en: 'Two-Week Titan', title_th: 'ไททัน 2 สัปดาห์', desc_en: 'Maintain a 14-day streak', desc_th: 'เช็คอินติดต่อกัน 14 วัน', target: 14, xp_reward: 300, icon: '🏋️' },
+  { key: 'green_5', title_en: 'Green Machine', title_th: 'เครื่องจักรสีเขียว', desc_en: 'Get 5 Green readiness days', desc_th: 'ได้วันสีเขียว 5 วัน', target: 5, xp_reward: 100, icon: '💚' },
+  { key: 'workouts_10', title_en: 'Iron Ten', title_th: 'เหล็ก 10 ครั้ง', desc_en: 'Complete 10 workouts', desc_th: 'ออกกำลังกายครบ 10 ครั้ง', target: 10, xp_reward: 250, icon: '🎯' },
+];
+
+// ─── Gamification State ───
+export interface GamificationState {
+  totalXP: number;
+  level: number;
+  tierName: string;
+  tierEmoji: string;
+  streakDays: number;
+  longestStreak: number;
+  badges: { badge_key: string; badge_name: string; earned_at: string }[];
+  loading: boolean;
+}
+
+export function useGamification() {
+  const [state, setState] = useState<GamificationState>({
+    totalXP: 0, level: 1, tierName: 'Seedling', tierEmoji: '🌱',
+    streakDays: 0, longestStreak: 0, badges: [], loading: true,
+  });
+  const [levelUpTo, setLevelUpTo] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setState(s => ({ ...s, loading: false })); return; }
+
+    const [gamRes, badgeRes] = await Promise.all([
+      supabase.from('user_gamification').select('*').eq('id', user.id).maybeSingle(),
+      supabase.from('user_badges').select('badge_key, badge_name, earned_at').eq('user_id', user.id),
+    ]);
+
+    const g = gamRes.data;
+    if (g) {
+      const level = getLevelFromXP(g.total_xp ?? 0);
+      const tier = getTierForLevel(level);
+      setState({
+        totalXP: g.total_xp ?? 0,
+        level,
+        tierName: tier.name,
+        tierEmoji: tier.emoji,
+        streakDays: g.streak_days ?? 0,
+        longestStreak: g.longest_streak ?? 0,
+        badges: (badgeRes.data ?? []).map(b => ({
+          badge_key: b.badge_key,
+          badge_name: b.badge_name,
+          earned_at: b.earned_at ?? '',
+        })),
+        loading: false,
+      });
+    } else {
+      setState(s => ({ ...s, loading: false }));
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const awardXP = async (amount: number, reason: string, description?: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const oldLevel = state.level;
+
+    // Insert XP transaction
+    await supabase.from('xp_transactions').insert({
+      user_id: user.id,
+      xp_amount: amount,
+      reason,
+      description: description ?? null,
+    });
+
+    // Update total XP
+    const newXP = state.totalXP + amount;
+    const newLevel = getLevelFromXP(newXP);
+    const newTier = getTierForLevel(newLevel);
+
+    await supabase.from('user_gamification').update({
+      total_xp: newXP,
+      current_level: newLevel,
+      tier_name: newTier.name,
+      updated_at: new Date().toISOString(),
+    }).eq('id', user.id);
+
+    setState(s => ({
+      ...s,
+      totalXP: newXP,
+      level: newLevel,
+      tierName: newTier.name,
+      tierEmoji: newTier.emoji,
+    }));
+
+    if (newLevel > oldLevel) {
+      setLevelUpTo(newLevel);
+    }
+  };
+
+  const updateStreak = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+    const { data: g } = await supabase.from('user_gamification')
+      .select('streak_days, longest_streak, last_checkin')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (!g) return;
+
+    let newStreak = 1;
+    if (g.last_checkin === yesterday) {
+      newStreak = (g.streak_days ?? 0) + 1;
+    } else if (g.last_checkin === today) {
+      newStreak = g.streak_days ?? 1;
+    }
+
+    const longestStreak = Math.max(newStreak, g.longest_streak ?? 0);
+
+    await supabase.from('user_gamification').update({
+      streak_days: newStreak,
+      longest_streak: longestStreak,
+      last_checkin: today,
+      updated_at: new Date().toISOString(),
+    }).eq('id', user.id);
+
+    setState(s => ({ ...s, streakDays: newStreak, longestStreak }));
+
+    // Award streak milestones
+    const streakMilestones = [
+      { days: 3, key: 'streak_3', xp: XP_AWARDS.streak_3 },
+      { days: 7, key: 'streak_7', xp: XP_AWARDS.streak_7 },
+      { days: 14, key: 'streak_14', xp: XP_AWARDS.streak_14 },
+      { days: 30, key: 'streak_30', xp: XP_AWARDS.streak_30 },
+    ];
+
+    for (const m of streakMilestones) {
+      if (newStreak === m.days) {
+        // Check if badge already earned
+        const existing = state.badges.find(b => b.badge_key === m.key);
+        if (!existing) {
+          await supabase.from('user_badges').insert({
+            user_id: user.id,
+            badge_key: m.key,
+            badge_name: `${m.days}-Day Streak`,
+          });
+          await awardXP(m.xp, 'streak_milestone', `${m.days}-day streak`);
+        }
+      }
+    }
+
+    return newStreak;
+  };
+
+  const dismissLevelUp = () => setLevelUpTo(null);
+
+  return { ...state, awardXP, updateStreak, levelUpTo, dismissLevelUp, reload: load };
+}
