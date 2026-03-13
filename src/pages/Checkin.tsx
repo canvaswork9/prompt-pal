@@ -1,27 +1,17 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import type { CheckinData, SleepQuality, YesterdayTraining, MuscleSoreness, NutritionLoad } from '@/lib/types';
-import { calculateReadiness } from '@/lib/decision-engine';
+import type { SleepQuality, YesterdayTraining, MuscleSoreness, NutritionLoad } from '@/lib/types';
 import ReadinessRing from '@/components/ReadinessRing';
 import ResultCard from '@/components/ResultCard';
+import { useCheckin } from '@/hooks/useCheckin';
+import { useAuth } from '@/hooks/useAuth';
 
 const CheckinPage = () => {
   const { t } = useLanguage();
-  const [submitted, setSubmitted] = useState(false);
-  const [data, setData] = useState<CheckinData>({
-    sleep_hours: 7,
-    sleep_quality: 'ok',
-    resting_hr: 62,
-    yesterday_training: 'none',
-    muscle_soreness: 'none',
-    nutrition_load: 'maintenance',
-  });
-
-  const result = calculateReadiness(data);
-  const allSelected = true;
+  const { user } = useAuth();
+  const { data, setData, result, submitted, setSubmitted, loading, saving, save } = useCheckin();
 
   const cardDelay = (i: number) => ({ initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 }, transition: { delay: i * 0.08, duration: 0.4 } });
 
