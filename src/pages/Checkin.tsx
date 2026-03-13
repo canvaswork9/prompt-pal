@@ -162,10 +162,10 @@ const CheckinPage = () => {
         variant="accent"
         size="xl"
         className="w-full"
-        disabled={!allSelected}
-        onClick={() => setSubmitted(true)}
+        disabled={saving}
+        onClick={save}
       >
-        {t('analyze')}
+        {saving ? '...' : t('analyze')}
       </Button>
     </div>
   );
