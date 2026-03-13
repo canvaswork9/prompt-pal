@@ -21,6 +21,10 @@ const CheckinPage = () => {
     </Button>
   );
 
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground">Loading...</div>;
+  }
+
   if (submitted) {
     return <ResultCard result={result} data={data} onBack={() => setSubmitted(false)} />;
   }
