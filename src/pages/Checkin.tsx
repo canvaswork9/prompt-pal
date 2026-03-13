@@ -59,6 +59,14 @@ const CheckinPage = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
+      <LevelUpOverlay level={gam.levelUpTo} onDismiss={gam.dismissLevelUp} />
+      <XPToast amount={xpToast?.amount ?? null} reason={xpToast?.reason ?? ''} onDone={() => setXpToast(null)} />
+
+      {/* XP Bar */}
+      {!gam.loading && (
+        <XPBar totalXP={gam.totalXP} level={gam.level} streakDays={gam.streakDays} tierEmoji={gam.tierEmoji} tierName={gam.tierName} />
+      )}
+
       {/* Header */}
       <div className="space-y-1">
         <h1 className="text-display text-2xl sm:text-3xl">{t('greeting')}, {user?.email?.split('@')[0] || 'User'} 👋</h1>
