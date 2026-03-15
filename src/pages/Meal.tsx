@@ -197,11 +197,14 @@ const MealPage = () => {
 
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-6">
-      <div>
-        <h1 className="text-display text-2xl">Today's Nutrition Plan</h1>
-        <p className="text-sm text-muted-foreground">
-          Nutrition Mode: {modeLabel} · Target: ~{macros.calories} kcal
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-display text-2xl">Today's Nutrition Plan</h1>
+          <p className="text-sm text-muted-foreground">
+            Nutrition Mode: {modeLabel} · Target: ~{macros.calories} kcal
+          </p>
+        </div>
+        <AddCustomMealDialog onAdded={() => setReloadKey(k => k + 1)} />
       </div>
 
       {/* Macro Summary */}
