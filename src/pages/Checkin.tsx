@@ -16,7 +16,7 @@ import LevelUpOverlay from '@/components/LevelUpOverlay';
 const CheckinPage = () => {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { data, setData, result, submitted, setSubmitted, loading, saving, save, existingId } = useCheckin();
+  const { data, setData, result, submitted, setSubmitted, loading, saving, save, existingId, displayName } = useCheckin();
   const gam = useGamification();
   const [xpToast, setXpToast] = useState<{ amount: number; reason: string } | null>(null);
 
