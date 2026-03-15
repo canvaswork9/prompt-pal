@@ -6,11 +6,12 @@ import { MEAL_DB } from '@/lib/exercise-db';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { Meal } from '@/lib/types';
+import AddCustomMealDialog from '@/components/AddCustomMealDialog';
+import type { Meal, MealSlot } from '@/lib/types';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-type MealSlotKey = 'breakfast' | 'pre_workout' | 'lunch' | 'dinner' | 'snack';
+type MealSlotKey = MealSlot;
 
 const MEAL_SLOTS: { key: MealSlotKey; icon: string; time: string; label: string }[] = [
   { key: 'breakfast', icon: '🌅', time: '07:00', label: 'Breakfast' },
@@ -26,11 +27,26 @@ const MealPage = () => {
   const [weightKg, setWeightKg] = useState(75);
   const [nutritionLoad, setNutritionLoad] = useState<string>('maintenance');
   const [fitnessGoal, setFitnessGoal] = useState<string>('muscle');
-  const [mealSelections, setMealSelections] = useState<Map<string, number>>(new Map()); // slot -> index in MEAL_DB
+  const [mealSelections, setMealSelections] = useState<Map<string, number>>(new Map());
   const [eatenSlots, setEatenSlots] = useState<Set<string>>(new Set());
-  const [dbLogIds, setDbLogIds] = useState<Map<string, string>>(new Map()); // slot -> db id
+  const [dbLogIds, setDbLogIds] = useState<Map<string, string>>(new Map());
+  const [customMeals, setCustomMeals] = useState<Record<string, Meal[]>>({});
+  const [reloadKey, setReloadKey] = useState(0);
 
-  // Load user profile + today's meal logs
+  // Load custom meals from DB
+  const loadCustomMeals = useCallback(async (userId: string) => {
+    const { data } = await supabase.from('custom_meals').select('*').eq('user_id', userId);
+    if (data && data.length > 0) {
+      const grouped: Record<string, Meal[]> = {};
+      data.forEach((m: any) => {
+        const slot = m.meal_slot || 'snack';
+        if (!grouped[slot]) grouped[slot] = [];
+        grouped[slot].push({ name_th: m.name, name_en: m.name, kcal: m.kcal, protein: Number(m.protein), carbs: Number(m.carbs), fat: Number(m.fat) });
+      });
+      setCustomMeals(grouped);
+    }
+  }, []);
+
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -46,7 +62,8 @@ const MealPage = () => {
       if (profile?.fitness_goal) setFitnessGoal(profile.fitness_goal);
       if (checkin?.nutrition_load) setNutritionLoad(checkin.nutrition_load);
 
-      // Restore eaten state from DB
+      await loadCustomMeals(user.id);
+
       if (logs && logs.length > 0) {
         const eaten = new Set<string>();
         const ids = new Map<string, string>();
@@ -55,7 +72,6 @@ const MealPage = () => {
           if (log.meal_slot) {
             if (log.eaten) eaten.add(log.meal_slot);
             ids.set(log.meal_slot, log.id);
-            // Find matching meal index
             const slotMeals = MEAL_DB[log.meal_slot as MealSlotKey];
             if (slotMeals && log.meal_name) {
               const idx = slotMeals.findIndex(m => m.name_th === log.meal_name || m.name_en === log.meal_name);
@@ -70,16 +86,22 @@ const MealPage = () => {
       setLoading(false);
     }
     load();
-  }, []);
+  }, [reloadKey, loadCustomMeals]);
 
   const macros = calculateMacros(weightKg, fitnessGoal as any, nutritionLoad as any);
 
+  const getAllMealsForSlot = useCallback((slot: MealSlotKey): Meal[] => {
+    const base = MEAL_DB[slot] || [];
+    const custom = customMeals[slot] || [];
+    return [...base, ...custom];
+  }, [customMeals]);
+
   const getMealForSlot = useCallback((slot: MealSlotKey): Meal | null => {
-    const meals = MEAL_DB[slot];
-    if (!meals || meals.length === 0) return null;
+    const meals = getAllMealsForSlot(slot);
+    if (meals.length === 0) return null;
     const idx = mealSelections.get(slot) ?? 0;
     return meals[idx] || meals[0];
-  }, [mealSelections]);
+  }, [mealSelections, getAllMealsForSlot]);
 
   // Calculate totals from eaten meals
   const totals = Array.from(eatenSlots).reduce(
@@ -147,15 +169,14 @@ const MealPage = () => {
   };
 
   const swapMeal = async (slot: MealSlotKey) => {
-    const meals = MEAL_DB[slot];
-    if (!meals || meals.length <= 1) return;
+    const meals = getAllMealsForSlot(slot);
+    if (meals.length <= 1) return;
 
     const currentIdx = mealSelections.get(slot) ?? 0;
     const nextIdx = (currentIdx + 1) % meals.length;
 
     setMealSelections(prev => new Map(prev).set(slot, nextIdx));
 
-    // If already logged, update in DB
     const existingId = dbLogIds.get(slot);
     if (existingId) {
       const meal = meals[nextIdx];
@@ -176,11 +197,14 @@ const MealPage = () => {
 
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-6">
-      <div>
-        <h1 className="text-display text-2xl">Today's Nutrition Plan</h1>
-        <p className="text-sm text-muted-foreground">
-          Nutrition Mode: {modeLabel} · Target: ~{macros.calories} kcal
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-display text-2xl">Today's Nutrition Plan</h1>
+          <p className="text-sm text-muted-foreground">
+            Nutrition Mode: {modeLabel} · Target: ~{macros.calories} kcal
+          </p>
+        </div>
+        <AddCustomMealDialog onAdded={() => setReloadKey(k => k + 1)} />
       </div>
 
       {/* Macro Summary */}
