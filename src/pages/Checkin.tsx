@@ -76,7 +76,7 @@ const CheckinPage = () => {
 
       {/* Header */}
       <div className="space-y-1">
-        <h1 className="text-display text-2xl sm:text-3xl">{t('greeting')}, {user?.email?.split('@')[0] || 'User'} 👋</h1>
+        <h1 className="text-display text-2xl sm:text-3xl">{t('greeting')}, {displayName || user?.email?.split('@')[0] || 'User'} 👋</h1>
         <p className="text-muted-foreground">{dayName}, {dateStr} · {t('time_to_checkin')}</p>
       </div>
 
