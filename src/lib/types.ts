@@ -56,7 +56,7 @@ export interface Exercise {
   name_en: string;
   name_th: string;
   muscles: string;
-  split: 'lower' | 'upper_chest' | 'upper_back' | 'upper_shoulders' | 'upper_arms';
+  split: 'lower' | 'upper_chest' | 'upper_back' | 'upper_shoulders' | 'upper_arms' | 'full_body';
   type: 'compound' | 'isolation';
   green_sets: string;
   yellow_sets: string;
