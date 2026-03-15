@@ -169,15 +169,14 @@ const MealPage = () => {
   };
 
   const swapMeal = async (slot: MealSlotKey) => {
-    const meals = MEAL_DB[slot];
-    if (!meals || meals.length <= 1) return;
+    const meals = getAllMealsForSlot(slot);
+    if (meals.length <= 1) return;
 
     const currentIdx = mealSelections.get(slot) ?? 0;
     const nextIdx = (currentIdx + 1) % meals.length;
 
     setMealSelections(prev => new Map(prev).set(slot, nextIdx));
 
-    // If already logged, update in DB
     const existingId = dbLogIds.get(slot);
     if (existingId) {
       const meal = meals[nextIdx];
