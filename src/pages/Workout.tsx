@@ -1,16 +1,19 @@
 import { motion } from 'framer-motion';
 import { useLanguage } from '@/lib/i18n';
-import { selectExercises } from '@/lib/exercise-db';
-import { useState, useEffect } from 'react';
+import { selectExercises, EXERCISE_DB } from '@/lib/exercise-db';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import SkeletonLoader from '@/components/SkeletonLoader';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const WorkoutPage = () => {
   const { t, lang } = useLanguage();
   const navigate = useNavigate();
+  const videoEnabled = useFeatureFlag('workout_videos');
   const [expandedTips, setExpandedTips] = useState<string | null>(null);
   const [checkinData, setCheckinData] = useState<{
     score: number; status: string; split: string; soreness: string;
@@ -20,30 +23,35 @@ const WorkoutPage = () => {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoading(false); return; }
 
-      const [{ data: checkin }, { data: profile }] = await Promise.all([
-        supabase.from('daily_checkins').select('*').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
-        supabase.from('user_profiles').select('experience').eq('id', user.id).maybeSingle(),
-      ]);
+        const [{ data: checkin }, { data: profile }] = await Promise.all([
+          supabase.from('daily_checkins').select('*').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
+          supabase.from('user_profiles').select('experience').eq('id', user.id).maybeSingle(),
+        ]);
 
-      if (profile?.experience) setExperience(profile.experience);
+        if (profile?.experience) setExperience(profile.experience);
 
-      if (checkin && checkin.readiness_score) {
-        setCheckinData({
-          score: checkin.readiness_score,
-          status: checkin.status || 'Yellow',
-          split: checkin.training_split || 'Lower Body',
-          soreness: checkin.muscle_soreness || 'none',
-        });
+        if (checkin && checkin.readiness_score) {
+          setCheckinData({
+            score: checkin.readiness_score,
+            status: checkin.status || 'Yellow',
+            split: checkin.training_split || 'Lower Body',
+            soreness: checkin.muscle_soreness || 'none',
+          });
+        }
+        setLoading(false);
+      } catch (err) {
+        console.error('Failed to load workout data:', err);
+        setLoading(false);
       }
-      setLoading(false);
     }
     load();
   }, []);
 
-  if (loading) return <div className="flex items-center justify-center min-h-[50vh] text-muted-foreground">Loading...</div>;
+  if (loading) return <SkeletonLoader />;
 
   if (!checkinData) {
     return (

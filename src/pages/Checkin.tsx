@@ -16,7 +16,7 @@ import LevelUpOverlay from '@/components/LevelUpOverlay';
 const CheckinPage = () => {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { data, setData, result, submitted, setSubmitted, loading, saving, save, existingId } = useCheckin();
+  const { data, setData, result, submitted, setSubmitted, loading, saving, save, existingId, displayName } = useCheckin();
   const gam = useGamification();
   const [xpToast, setXpToast] = useState<{ amount: number; reason: string } | null>(null);
 
@@ -46,7 +46,14 @@ const CheckinPage = () => {
   );
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground">Loading...</div>;
+    return (
+      <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
+        <div className="h-8 bg-muted rounded-lg animate-pulse w-48" />
+        <div className="h-32 bg-muted rounded-xl animate-pulse" />
+        <div className="h-32 bg-muted rounded-xl animate-pulse" />
+        <div className="h-32 bg-muted rounded-xl animate-pulse" />
+      </div>
+    );
   }
 
   if (submitted) {
@@ -69,7 +76,7 @@ const CheckinPage = () => {
 
       {/* Header */}
       <div className="space-y-1">
-        <h1 className="text-display text-2xl sm:text-3xl">{t('greeting')}, {user?.email?.split('@')[0] || 'User'} 👋</h1>
+        <h1 className="text-display text-2xl sm:text-3xl">{t('greeting')}, {displayName || user?.email?.split('@')[0] || 'User'} 👋</h1>
         <p className="text-muted-foreground">{dayName}, {dateStr} · {t('time_to_checkin')}</p>
       </div>
 

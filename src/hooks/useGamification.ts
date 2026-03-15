@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { Json } from '@/integrations/supabase/types';
 
-// ─── XP & Level Formulas ───
-const XP_PER_LEVEL = 200;
+// ─── XP & Level Formulas (Exponential) ───
 const TIER_THRESHOLDS = [
   { level: 1, name: 'Seedling', emoji: '🌱' },
   { level: 5, name: 'Sprout', emoji: '🌿' },
@@ -21,13 +19,24 @@ export function getTierForLevel(level: number) {
   return tier;
 }
 
-export function getLevelFromXP(xp: number) {
-  return Math.floor(xp / XP_PER_LEVEL) + 1;
+// XP required to reach level N: 200 * (N-1)^2
+export function xpForLevel(level: number): number {
+  return 200 * Math.pow(level - 1, 2);
+}
+
+export function getLevelFromXP(xp: number): number {
+  let level = 1;
+  while (xpForLevel(level + 1) <= xp) level++;
+  return Math.min(level, 50);
 }
 
 export function getXPProgress(xp: number) {
-  const currentLevelXP = xp % XP_PER_LEVEL;
-  return { current: currentLevelXP, needed: XP_PER_LEVEL, pct: (currentLevelXP / XP_PER_LEVEL) * 100 };
+  const level = getLevelFromXP(xp);
+  const currentFloor = xpForLevel(level);
+  const nextFloor = xpForLevel(level + 1);
+  const current = xp - currentFloor;
+  const needed = nextFloor - currentFloor;
+  return { current, needed, pct: needed > 0 ? (current / needed) * 100 : 0 };
 }
 
 // ─── XP Award amounts ───
@@ -82,76 +91,93 @@ export function useGamification() {
   const [levelUpTo, setLevelUpTo] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setState(s => ({ ...s, loading: false })); return; }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setState(s => ({ ...s, loading: false })); return; }
 
-    const [gamRes, badgeRes] = await Promise.all([
-      supabase.from('user_gamification').select('*').eq('id', user.id).maybeSingle(),
-      supabase.from('user_badges').select('badge_key, badge_name, earned_at').eq('user_id', user.id),
-    ]);
+      const [gamRes, badgeRes] = await Promise.all([
+        supabase.from('user_gamification').select('*').eq('id', user.id).maybeSingle(),
+        supabase.from('user_badges').select('badge_key, badge_name, earned_at').eq('user_id', user.id),
+      ]);
 
-    const g = gamRes.data;
-    if (g) {
-      const level = getLevelFromXP(g.total_xp ?? 0);
-      const tier = getTierForLevel(level);
-      setState({
-        totalXP: g.total_xp ?? 0,
-        level,
-        tierName: tier.name,
-        tierEmoji: tier.emoji,
-        streakDays: g.streak_days ?? 0,
-        longestStreak: g.longest_streak ?? 0,
-        badges: (badgeRes.data ?? []).map(b => ({
-          badge_key: b.badge_key,
-          badge_name: b.badge_name,
-          earned_at: b.earned_at ?? '',
-        })),
-        loading: false,
-      });
-    } else {
+      const g = gamRes.data;
+      if (g) {
+        const level = getLevelFromXP(g.total_xp ?? 0);
+        const tier = getTierForLevel(level);
+        setState({
+          totalXP: g.total_xp ?? 0,
+          level,
+          tierName: tier.name,
+          tierEmoji: tier.emoji,
+          streakDays: g.streak_days ?? 0,
+          longestStreak: g.longest_streak ?? 0,
+          badges: (badgeRes.data ?? []).map(b => ({
+            badge_key: b.badge_key,
+            badge_name: b.badge_name,
+            earned_at: b.earned_at ?? '',
+          })),
+          loading: false,
+        });
+      } else {
+        setState(s => ({ ...s, loading: false }));
+      }
+    } catch (err) {
+      console.error('Failed to load gamification:', err);
       setState(s => ({ ...s, loading: false }));
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const awardXP = async (amount: number, reason: string, description?: string) => {
+  const awardXP = async (amount: number, reason: string, description?: string): Promise<{ xpEarned: number; didLevelUp: boolean; newLevel: number } | null> => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return null;
 
-    const oldLevel = state.level;
+    const today = new Date().toISOString().slice(0, 10);
 
-    // Insert XP transaction
-    await supabase.from('xp_transactions').insert({
-      user_id: user.id,
-      xp_amount: amount,
-      reason,
-      description: description ?? null,
+    // Check if this reason was already awarded today
+    const { data: existing } = await supabase
+      .from('xp_transactions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('reason', reason)
+      .gte('created_at', today + 'T00:00:00Z')
+      .maybeSingle();
+
+    if (existing) return null; // Already awarded today
+
+    // Use atomic RPC
+    const { data, error } = await supabase.rpc('add_xp', {
+      p_user_id: user.id,
+      p_amount: amount,
+      p_reason: reason,
+      p_description: description ?? null,
     });
 
-    // Update total XP
-    const newXP = state.totalXP + amount;
-    const newLevel = getLevelFromXP(newXP);
-    const newTier = getTierForLevel(newLevel);
+    if (error) {
+      console.error('Failed to award XP:', error);
+      return null;
+    }
 
-    await supabase.from('user_gamification').update({
-      total_xp: newXP,
-      current_level: newLevel,
-      tier_name: newTier.name,
-      updated_at: new Date().toISOString(),
-    }).eq('id', user.id);
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result) return null;
+
+    const newLevel = result.new_level;
+    const newTier = getTierForLevel(newLevel);
 
     setState(s => ({
       ...s,
-      totalXP: newXP,
+      totalXP: result.new_total,
       level: newLevel,
       tierName: newTier.name,
       tierEmoji: newTier.emoji,
     }));
 
-    if (newLevel > oldLevel) {
+    if (result.did_level_up) {
       setLevelUpTo(newLevel);
     }
+
+    return { xpEarned: amount, didLevelUp: result.did_level_up, newLevel };
   };
 
   const updateStreak = async () => {
@@ -196,7 +222,6 @@ export function useGamification() {
 
     for (const m of streakMilestones) {
       if (newStreak === m.days) {
-        // Check if badge already earned
         const existing = state.badges.find(b => b.badge_key === m.key);
         if (!existing) {
           await supabase.from('user_badges').insert({

@@ -1,12 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
+import DisabledFeaturePlaceholder from '@/components/DisabledFeaturePlaceholder';
 
 const CoachPage = () => {
+  const coachEnabled = useFeatureFlag('ai_coach');
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [displayName, setDisplayName] = useState('');
+  const [todayScore, setTodayScore] = useState<number | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    async function loadContext() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const [{ data: profile }, { data: checkin }] = await Promise.all([
+          supabase.from('user_profiles').select('display_name').eq('id', user.id).maybeSingle(),
+          supabase.from('daily_checkins').select('readiness_score').eq('user_id', user.id).eq('date', new Date().toISOString().slice(0, 10)).maybeSingle(),
+        ]);
+        if (profile?.display_name) setDisplayName(profile.display_name);
+        if (checkin?.readiness_score) setTodayScore(checkin.readiness_score);
+      } catch (err) {
+        console.error('Failed to load coach context:', err);
+      }
+    }
+    loadContext();
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const suggestedPrompts = [
     'What should I train today?',
@@ -17,21 +47,41 @@ const CoachPage = () => {
   ];
 
   const handleSend = async (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || loading) return;
     const userMsg = { role: 'user' as const, content: text };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
 
-    // Mock response for now — will integrate with Lovable AI later
-    setTimeout(() => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not logged in');
+
+      const allMessages = [...messages, userMsg].slice(-10);
+
+      const { data, error } = await supabase.functions.invoke('ai-coach', {
+        body: { messages: allMessages, userId: user.id },
+      });
+
+      if (error) throw error;
+
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `Based on your recent data, here's my take: Your average score has been around 74 this week, which is solid Yellow territory. ${text.includes('train') ? 'I\'d recommend a moderate lower body session today — your upper body needs more recovery time.' : 'Keep focusing on sleep quality and nutrition to push into consistent Green territory.'} Remember, consistency beats intensity every time. 💪`,
+        content: data.reply || 'Sorry, something went wrong.',
       }]);
+    } catch (err: any) {
+      console.error('Coach error:', err);
+      toast.error('Failed to get response. Please try again.');
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Sorry, I had trouble connecting. Please try again. 🔄',
+      }]);
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
+
+  if (!coachEnabled) return <DisabledFeaturePlaceholder name="AI Coach" />;
 
   return (
     <div className="max-w-3xl mx-auto h-[calc(100vh-120px)] flex flex-col">
@@ -39,10 +89,19 @@ const CoachPage = () => {
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-lg">🤖</div>
-          <div>
+          <div className="flex-1">
             <h1 className="font-semibold">FitCoach</h1>
-            <p className="text-xs text-muted-foreground">Knows your last 30 days</p>
+            <p className="text-xs text-muted-foreground">Knows your last 30 days{displayName ? ` · Hi, ${displayName}` : ''}</p>
           </div>
+          {todayScore !== null && (
+            <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+              todayScore >= 75 ? 'bg-status-green-dim text-status-green' :
+              todayScore >= 50 ? 'bg-status-yellow-dim text-status-yellow' :
+              'bg-status-red-dim text-status-red'
+            }`}>
+              Score: {todayScore}
+            </div>
+          )}
         </div>
       </div>
 
@@ -51,7 +110,7 @@ const CoachPage = () => {
         {messages.length === 0 && (
           <div className="space-y-4">
             <div className="bg-card rounded-xl p-4 card-shadow max-w-sm">
-              <p className="text-sm">Hi there 👋 I know your training history. Ask me anything.</p>
+              <p className="text-sm">Hi{displayName ? ` ${displayName}` : ''} 👋 I know your training history. Ask me anything.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {suggestedPrompts.map(prompt => (
@@ -70,7 +129,7 @@ const CoachPage = () => {
             animate={{ opacity: 1, y: 0 }}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            <div className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${
+            <div className={`max-w-[80%] rounded-xl px-4 py-3 text-sm whitespace-pre-wrap ${
               msg.role === 'user'
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-card card-shadow'
@@ -91,6 +150,7 @@ const CoachPage = () => {
             </div>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}

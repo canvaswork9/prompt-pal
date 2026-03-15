@@ -505,6 +505,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_xp: {
+        Args: {
+          p_amount: number
+          p_description?: string
+          p_reason: string
+          p_user_id: string
+        }
+        Returns: {
+          did_level_up: boolean
+          new_level: number
+          new_total: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

@@ -1,59 +1,68 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { estimated1RM } from '@/lib/decision-engine';
 import { useWorkout, type WorkingSet } from '@/hooks/useWorkout';
 import { useNavigate } from 'react-router-dom';
-import { selectExercises } from '@/lib/exercise-db';
+import { selectExercises, EXERCISE_DB } from '@/lib/exercise-db';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/lib/i18n';
+import { useFeatureFlag } from '@/hooks/useFeatureFlag';
+import DisabledFeaturePlaceholder from '@/components/DisabledFeaturePlaceholder';
+import SkeletonLoader from '@/components/SkeletonLoader';
+import RestTimer from '@/components/RestTimer';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const LogPage = () => {
   const { lang } = useLanguage();
   const navigate = useNavigate();
+  const logEnabled = useFeatureFlag('progressive_overload');
   const { loading, saving, saveSet, finishSession, getSetsForExercise } = useWorkout();
-  const [exercises, setExercises] = useState<{ key: string; name: string }[]>([]);
+  const [exercises, setExercises] = useState<{ key: string; name: string; type: string }[]>([]);
   const [currentEx, setCurrentEx] = useState(0);
   const [localSets, setLocalSets] = useState<WorkingSet[]>([]);
   const [sessionStart] = useState(() => Date.now());
+  const [restTimer, setRestTimer] = useState<{ active: boolean; seconds: number }>({ active: false, seconds: 0 });
 
-  // Load exercises from today's checkin
   useEffect(() => {
     async function loadExercises() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-      const [{ data: checkin }, { data: profile }] = await Promise.all([
-        supabase.from('daily_checkins').select('*').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
-        supabase.from('user_profiles').select('experience').eq('id', user.id).maybeSingle(),
-      ]);
-
-      if (checkin?.training_split) {
-        const exList = selectExercises(
-          checkin.training_split,
-          (checkin.status as any) || 'Yellow',
-          (profile?.experience as any) || 'intermediate',
-          (checkin.muscle_soreness as any) || 'none'
-        );
-        setExercises(exList.map(e => ({
-          key: e.key,
-          name: lang === 'th' ? e.name_th : e.name_en,
-        })));
-      } else {
-        setExercises([
-          { key: 'squat_barbell', name: 'Barbell Back Squat' },
-          { key: 'rdl', name: 'Romanian Deadlift' },
-          { key: 'leg_press', name: 'Leg Press' },
+        const [{ data: checkin }, { data: profile }] = await Promise.all([
+          supabase.from('daily_checkins').select('*').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
+          supabase.from('user_profiles').select('experience').eq('id', user.id).maybeSingle(),
         ]);
+
+        if (checkin?.training_split) {
+          const exList = selectExercises(
+            checkin.training_split,
+            (checkin.status as any) || 'Yellow',
+            (profile?.experience as any) || 'intermediate',
+            (checkin.muscle_soreness as any) || 'none'
+          );
+          setExercises(exList.map(e => ({
+            key: e.key,
+            name: lang === 'th' ? e.name_th : e.name_en,
+            type: e.type,
+          })));
+        } else {
+          setExercises([
+            { key: 'squat_barbell', name: 'Barbell Back Squat', type: 'compound' },
+            { key: 'rdl', name: 'Romanian Deadlift', type: 'compound' },
+            { key: 'leg_press', name: 'Leg Press', type: 'compound' },
+          ]);
+        }
+      } catch (err) {
+        console.error('Failed to load exercises:', err);
       }
     }
     loadExercises();
   }, [lang]);
 
-  // Load saved sets when switching exercise
   useEffect(() => {
     if (exercises.length === 0) return;
     const saved = getSetsForExercise(exercises[currentEx].key);
@@ -88,6 +97,10 @@ const LogPage = () => {
     const ok = await saveSet(exercises[currentEx].key, exercises[currentEx].name, set);
     if (ok) {
       setLocalSets(prev => prev.map((s, j) => j === i ? { ...s, saved: true } : s));
+      // Start rest timer
+      const exType = exercises[currentEx].type;
+      const restSeconds = exType === 'compound' ? 120 : 60;
+      setRestTimer({ active: true, seconds: restSeconds });
     }
   };
 
@@ -97,7 +110,8 @@ const LogPage = () => {
     navigate('/progress');
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-[50vh] text-muted-foreground">Loading...</div>;
+  if (!logEnabled) return <DisabledFeaturePlaceholder name="Progressive Overload Log" />;
+  if (loading) return <SkeletonLoader />;
 
   if (exercises.length === 0) {
     return (
@@ -122,7 +136,6 @@ const LogPage = () => {
         <p className="text-sm text-muted-foreground">Today · {exercises.length} exercises</p>
       </div>
 
-      {/* Exercise Nav */}
       <div className="flex gap-2 overflow-x-auto pb-2">
         {exercises.map((ex, i) => (
           <Button key={ex.key} variant={i === currentEx ? 'default' : 'outline'} size="sm" onClick={() => setCurrentEx(i)} className="whitespace-nowrap">
@@ -131,11 +144,15 @@ const LogPage = () => {
         ))}
       </div>
 
-      {/* Current Exercise */}
       <motion.div key={currentEx} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card rounded-xl p-5 card-shadow space-y-4">
         <h2 className="font-semibold text-lg">
           Exercise {currentEx + 1} of {exercises.length}: {exercises[currentEx].name}
         </h2>
+
+        {/* Rest Timer */}
+        {restTimer.active && (
+          <RestTimer seconds={restTimer.seconds} onDone={() => setRestTimer({ active: false, seconds: 0 })} />
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -186,7 +203,6 @@ const LogPage = () => {
         )}
       </motion.div>
 
-      {/* Nav */}
       <div className="flex gap-3">
         <Button variant="outline" disabled={currentEx === 0} onClick={() => setCurrentEx(c => c - 1)} className="flex-1">← Previous</Button>
         {currentEx < exercises.length - 1 ? (
