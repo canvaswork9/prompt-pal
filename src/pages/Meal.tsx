@@ -6,7 +6,8 @@ import { MEAL_DB } from '@/lib/exercise-db';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { Meal } from '@/lib/types';
+import AddCustomMealDialog from '@/components/AddCustomMealDialog';
+import type { Meal, MealSlot } from '@/lib/types';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
