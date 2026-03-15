@@ -11,7 +11,7 @@ import type { Meal, MealSlot } from '@/lib/types';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-type MealSlotKey = 'breakfast' | 'pre_workout' | 'lunch' | 'dinner' | 'snack';
+type MealSlotKey = MealSlot;
 
 const MEAL_SLOTS: { key: MealSlotKey; icon: string; time: string; label: string }[] = [
   { key: 'breakfast', icon: '🌅', time: '07:00', label: 'Breakfast' },
