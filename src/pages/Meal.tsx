@@ -27,9 +27,11 @@ const MealPage = () => {
   const [weightKg, setWeightKg] = useState(75);
   const [nutritionLoad, setNutritionLoad] = useState<string>('maintenance');
   const [fitnessGoal, setFitnessGoal] = useState<string>('muscle');
-  const [mealSelections, setMealSelections] = useState<Map<string, number>>(new Map()); // slot -> index in MEAL_DB
+  const [mealSelections, setMealSelections] = useState<Map<string, number>>(new Map());
   const [eatenSlots, setEatenSlots] = useState<Set<string>>(new Set());
-  const [dbLogIds, setDbLogIds] = useState<Map<string, string>>(new Map()); // slot -> db id
+  const [dbLogIds, setDbLogIds] = useState<Map<string, string>>(new Map());
+  const [customMeals, setCustomMeals] = useState<Record<string, Meal[]>>({});
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Load user profile + today's meal logs
   useEffect(() => {
