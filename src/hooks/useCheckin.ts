@@ -11,6 +11,8 @@ export function useCheckin() {
   const [saving, setSaving] = useState(false);
   const [existingId, setExistingId] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [baselineHR, setBaselineHR] = useState<number>(60);
+  const [displayName, setDisplayName] = useState('');
   const [data, setData] = useState<CheckinData>({
     sleep_hours: 7,
     sleep_quality: 'ok',
@@ -23,34 +25,40 @@ export function useCheckin() {
   // Load today's checkin if it exists
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoading(false); return; }
 
-      const { data: checkin } = await supabase
-        .from('daily_checkins')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('date', todayStr())
-        .maybeSingle();
+        const [{ data: checkin }, { data: profile }] = await Promise.all([
+          supabase.from('daily_checkins').select('*').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
+          supabase.from('user_profiles').select('baseline_hr, display_name').eq('id', user.id).maybeSingle(),
+        ]);
 
-      if (checkin) {
-        setData({
-          sleep_hours: Number(checkin.sleep_hours),
-          sleep_quality: (checkin.sleep_quality as CheckinData['sleep_quality']) || 'ok',
-          resting_hr: checkin.resting_hr ?? 62,
-          yesterday_training: (checkin.yesterday_training as CheckinData['yesterday_training']) || 'none',
-          muscle_soreness: (checkin.muscle_soreness as CheckinData['muscle_soreness']) || 'none',
-          nutrition_load: (checkin.nutrition_load as CheckinData['nutrition_load']) || 'maintenance',
-        });
-        setExistingId(checkin.id);
-        if (checkin.readiness_score) setSubmitted(true);
+        if (profile?.baseline_hr) setBaselineHR(profile.baseline_hr);
+        if (profile?.display_name) setDisplayName(profile.display_name);
+
+        if (checkin) {
+          setData({
+            sleep_hours: Number(checkin.sleep_hours),
+            sleep_quality: (checkin.sleep_quality as CheckinData['sleep_quality']) || 'ok',
+            resting_hr: checkin.resting_hr ?? 62,
+            yesterday_training: (checkin.yesterday_training as CheckinData['yesterday_training']) || 'none',
+            muscle_soreness: (checkin.muscle_soreness as CheckinData['muscle_soreness']) || 'none',
+            nutrition_load: (checkin.nutrition_load as CheckinData['nutrition_load']) || 'maintenance',
+          });
+          setExistingId(checkin.id);
+          if (checkin.readiness_score) setSubmitted(true);
+        }
+        setLoading(false);
+      } catch (err) {
+        console.error('Failed to load checkin:', err);
+        setLoading(false);
       }
-      setLoading(false);
     }
     load();
   }, []);
 
-  const result: ReadinessResult = calculateReadiness(data);
+  const result: ReadinessResult = calculateReadiness(data, baselineHR);
 
   const save = async () => {
     setSaving(true);
@@ -96,5 +104,5 @@ export function useCheckin() {
     }
   };
 
-  return { data, setData, result, submitted, setSubmitted, loading, saving, save, existingId };
+  return { data, setData, result, submitted, setSubmitted, loading, saving, save, existingId, displayName };
 }
