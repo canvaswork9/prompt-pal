@@ -33,7 +33,20 @@ const MealPage = () => {
   const [customMeals, setCustomMeals] = useState<Record<string, Meal[]>>({});
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Load user profile + today's meal logs
+  // Load custom meals from DB
+  const loadCustomMeals = useCallback(async (userId: string) => {
+    const { data } = await supabase.from('custom_meals').select('*').eq('user_id', userId);
+    if (data && data.length > 0) {
+      const grouped: Record<string, Meal[]> = {};
+      data.forEach((m: any) => {
+        const slot = m.meal_slot || 'snack';
+        if (!grouped[slot]) grouped[slot] = [];
+        grouped[slot].push({ name_th: m.name, name_en: m.name, kcal: m.kcal, protein: Number(m.protein), carbs: Number(m.carbs), fat: Number(m.fat) });
+      });
+      setCustomMeals(grouped);
+    }
+  }, []);
+
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -49,7 +62,8 @@ const MealPage = () => {
       if (profile?.fitness_goal) setFitnessGoal(profile.fitness_goal);
       if (checkin?.nutrition_load) setNutritionLoad(checkin.nutrition_load);
 
-      // Restore eaten state from DB
+      await loadCustomMeals(user.id);
+
       if (logs && logs.length > 0) {
         const eaten = new Set<string>();
         const ids = new Map<string, string>();
@@ -58,7 +72,6 @@ const MealPage = () => {
           if (log.meal_slot) {
             if (log.eaten) eaten.add(log.meal_slot);
             ids.set(log.meal_slot, log.id);
-            // Find matching meal index
             const slotMeals = MEAL_DB[log.meal_slot as MealSlotKey];
             if (slotMeals && log.meal_name) {
               const idx = slotMeals.findIndex(m => m.name_th === log.meal_name || m.name_en === log.meal_name);
@@ -73,7 +86,7 @@ const MealPage = () => {
       setLoading(false);
     }
     load();
-  }, []);
+  }, [reloadKey, loadCustomMeals]);
 
   const macros = calculateMacros(weightKg, fitnessGoal as any, nutritionLoad as any);
 
