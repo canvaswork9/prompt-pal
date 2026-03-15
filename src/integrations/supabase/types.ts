@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      custom_meals: {
+        Row: {
+          carbs: number
+          created_at: string | null
+          fat: number
+          id: string
+          kcal: number
+          meal_slot: string | null
+          name: string
+          protein: number
+          user_id: string
+        }
+        Insert: {
+          carbs?: number
+          created_at?: string | null
+          fat?: number
+          id?: string
+          kcal?: number
+          meal_slot?: string | null
+          name: string
+          protein?: number
+          user_id: string
+        }
+        Update: {
+          carbs?: number
+          created_at?: string | null
+          fat?: number
+          id?: string
+          kcal?: number
+          meal_slot?: string | null
+          name?: string
+          protein?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       daily_checkins: {
         Row: {
           cardio_zone: string | null
