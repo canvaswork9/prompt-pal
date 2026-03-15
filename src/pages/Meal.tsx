@@ -90,12 +90,18 @@ const MealPage = () => {
 
   const macros = calculateMacros(weightKg, fitnessGoal as any, nutritionLoad as any);
 
+  const getAllMealsForSlot = useCallback((slot: MealSlotKey): Meal[] => {
+    const base = MEAL_DB[slot] || [];
+    const custom = customMeals[slot] || [];
+    return [...base, ...custom];
+  }, [customMeals]);
+
   const getMealForSlot = useCallback((slot: MealSlotKey): Meal | null => {
-    const meals = MEAL_DB[slot];
-    if (!meals || meals.length === 0) return null;
+    const meals = getAllMealsForSlot(slot);
+    if (meals.length === 0) return null;
     const idx = mealSelections.get(slot) ?? 0;
     return meals[idx] || meals[0];
-  }, [mealSelections]);
+  }, [mealSelections, getAllMealsForSlot]);
 
   // Calculate totals from eaten meals
   const totals = Array.from(eatenSlots).reduce(
