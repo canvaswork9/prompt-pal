@@ -201,10 +201,10 @@ const CheckinPage = () => {
         variant="accent"
         size="xl"
         className="w-full"
-        disabled={saving}
+        disabled={saving || submitted}
         onClick={handleSave}
       >
-        {saving ? '...' : t('analyze')}
+        {saving ? '...' : submitted ? t('analyze') + ' ✓' : t('analyze')}
       </Button>
     </div>
   );

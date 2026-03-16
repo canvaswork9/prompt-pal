@@ -31,56 +31,58 @@ export function useWorkout() {
   // Load or create today's workout session
   useEffect(() => {
     async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoading(false); return; }
 
-      // Get today's checkin for context
-      const { data: checkin } = await supabase
-        .from('daily_checkins')
-        .select('id, readiness_score, status, training_split')
-        .eq('user_id', user.id)
-        .eq('date', todayStr())
-        .maybeSingle();
+        const { data: checkin } = await supabase
+          .from('daily_checkins')
+          .select('id, readiness_score, status, training_split')
+          .eq('user_id', user.id)
+          .eq('date', todayStr())
+          .maybeSingle();
 
-      if (checkin) setCheckinId(checkin.id);
+        if (checkin) setCheckinId(checkin.id);
 
-      // Check for existing session today
-      const { data: session } = await supabase
-        .from('workout_sessions')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('date', todayStr())
-        .maybeSingle();
+        const { data: session } = await supabase
+          .from('workout_sessions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('date', todayStr())
+          .maybeSingle();
 
-      if (session) {
-        setSessionId(session.id);
-        // Load existing sets
-        const { data: sets } = await supabase
-          .from('exercise_sets')
-          .select('*')
-          .eq('session_id', session.id)
-          .order('set_number');
+        if (session) {
+          setSessionId(session.id);
+          const { data: sets } = await supabase
+            .from('exercise_sets')
+            .select('*')
+            .eq('session_id', session.id)
+            .order('set_number');
 
-        if (sets && sets.length > 0) {
-          const map = new Map<string, WorkingSet[]>();
-          sets.forEach(s => {
-            const key = s.exercise_key;
-            const existing = map.get(key) || [];
-            existing.push({
-              id: s.id,
-              set_number: s.set_number,
-              weight_kg: Number(s.weight_kg) || 0,
-              reps: s.reps || 0,
-              rpe: s.rpe || 0,
-              is_warmup: s.is_warmup || false,
-              saved: true,
+          if (sets && sets.length > 0) {
+            const map = new Map<string, WorkingSet[]>();
+            sets.forEach(s => {
+              const key = s.exercise_key;
+              const existing = map.get(key) || [];
+              existing.push({
+                id: s.id,
+                set_number: s.set_number,
+                weight_kg: Number(s.weight_kg) || 0,
+                reps: s.reps || 0,
+                rpe: s.rpe || 0,
+                is_warmup: s.is_warmup || false,
+                saved: true,
+              });
+              map.set(key, existing);
             });
-            map.set(key, existing);
-          });
-          setExerciseLogs(map);
+            setExerciseLogs(map);
+          }
         }
+        setLoading(false);
+      } catch (err) {
+        console.error('Failed to initialize workout session:', err);
+        setLoading(false);
       }
-      setLoading(false);
     }
     init();
   }, []);
@@ -91,7 +93,6 @@ export function useWorkout() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    // Get checkin data for the session
     const { data: checkin } = await supabase
       .from('daily_checkins')
       .select('id, readiness_score, training_split')
@@ -153,7 +154,6 @@ export function useWorkout() {
         savedId = inserted.id;
       }
 
-      // Update local state
       setExerciseLogs(prev => {
         const next = new Map(prev);
         const sets = [...(next.get(exerciseKey) || [])];
@@ -165,7 +165,6 @@ export function useWorkout() {
         return next;
       });
 
-      // Auto-check PR
       await checkAndUpdatePR(user.id, exerciseKey, set.weight_kg, set.reps, sid);
 
       toast.success(`Set ${set.set_number} saved`);

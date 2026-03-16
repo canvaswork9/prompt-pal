@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 const translations = {
   th: {
@@ -196,13 +197,21 @@ interface LanguageStore {
   t: (key: TranslationKey) => string;
 }
 
-export const useLanguage = create<LanguageStore>((set, get) => ({
-  lang: 'en',
-  setLang: (lang) => set({ lang }),
-  t: (key) => {
-    const lang = get().lang;
-    return translations[lang][key] || translations.en[key] || key;
-  },
-}));
+export const useLanguage = create<LanguageStore>()(
+  persist(
+    (set, get) => ({
+      lang: 'en' as Language,
+      setLang: (lang) => set({ lang }),
+      t: (key) => {
+        const lang = get().lang;
+        return (translations[lang] as any)[key] || translations.en[key] || key;
+      },
+    }),
+    {
+      name: 'fitdecide-language',
+      partialize: (state) => ({ lang: state.lang }),
+    }
+  )
+);
 
 export type { TranslationKey, Language };
