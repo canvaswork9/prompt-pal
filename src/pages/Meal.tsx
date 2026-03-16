@@ -56,7 +56,7 @@ const MealPage = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { setLoading(false); return; }
 
-        const [{ data: profile }, { data: checkin }, { data: logs }] = await Promise.all([
+        const [{ data: profile }, { data: todayCheckin }, { data: logs }] = await Promise.all([
           supabase.from('user_profiles').select('weight_kg, fitness_goal').eq('id', user.id).maybeSingle(),
           supabase.from('daily_checkins').select('nutrition_load').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
           supabase.from('meal_logs').select('*').eq('user_id', user.id).eq('date', todayStr()),
@@ -64,6 +64,21 @@ const MealPage = () => {
 
         if (profile?.weight_kg) setWeightKg(Number(profile.weight_kg));
         if (profile?.fitness_goal) setFitnessGoal(profile.fitness_goal);
+
+        // Use today's checkin, or fall back to the most recent one
+        let checkin = todayCheckin;
+        if (!checkin?.nutrition_load) {
+          const { data: latestCheckin } = await supabase
+            .from('daily_checkins')
+            .select('nutrition_load')
+            .eq('user_id', user.id)
+            .not('nutrition_load', 'is', null)
+            .order('date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (latestCheckin?.nutrition_load) checkin = latestCheckin;
+        }
+
         if (checkin?.nutrition_load) setNutritionLoad(checkin.nutrition_load);
 
         await loadCustomMeals(user.id);

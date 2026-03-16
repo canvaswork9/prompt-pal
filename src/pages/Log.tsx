@@ -25,6 +25,7 @@ const LogPage = () => {
   const [localSets, setLocalSets] = useState<WorkingSet[]>([]);
   const [sessionStart] = useState(() => Date.now());
   const [restTimer, setRestTimer] = useState<{ active: boolean; seconds: number }>({ active: false, seconds: 0 });
+  const [lastWeights, setLastWeights] = useState<Record<string, number>>({});
 
   useEffect(() => {
     async function loadExercises() {
@@ -37,8 +38,10 @@ const LogPage = () => {
           supabase.from('user_profiles').select('experience').eq('id', user.id).maybeSingle(),
         ]);
 
+        let exList: { key: string; name_en: string; name_th: string; type: string }[] = [];
+
         if (checkin?.training_split) {
-          const exList = selectExercises(
+          exList = selectExercises(
             checkin.training_split,
             (checkin.status as any) || 'Yellow',
             (profile?.experience as any) || 'intermediate',
@@ -50,11 +53,32 @@ const LogPage = () => {
             type: e.type,
           })));
         } else {
-          setExercises([
-            { key: 'squat_barbell', name: 'Barbell Back Squat', type: 'compound' },
-            { key: 'rdl', name: 'Romanian Deadlift', type: 'compound' },
-            { key: 'leg_press', name: 'Leg Press', type: 'compound' },
-          ]);
+          exList = [
+            { key: 'squat_barbell', name_en: 'Barbell Back Squat', name_th: 'Barbell Back Squat', type: 'compound' },
+            { key: 'rdl', name_en: 'Romanian Deadlift', name_th: 'Romanian Deadlift', type: 'compound' },
+            { key: 'leg_press', name_en: 'Leg Press', name_th: 'Leg Press', type: 'compound' },
+          ];
+          setExercises(exList.map(e => ({ key: e.key, name: e.name_en, type: e.type })));
+        }
+
+        // Fetch last PR weights for pre-fill
+        const exKeys = exList.map(e => e.key);
+        if (exKeys.length > 0) {
+          const { data: prs } = await supabase
+            .from('personal_records')
+            .select('exercise_key, weight_kg')
+            .eq('user_id', user.id)
+            .in('exercise_key', exKeys);
+
+          if (prs && prs.length > 0) {
+            const weightMap: Record<string, number> = {};
+            prs.forEach(pr => {
+              if (pr.exercise_key && pr.weight_kg) {
+                weightMap[pr.exercise_key] = Number(pr.weight_kg);
+              }
+            });
+            setLastWeights(weightMap);
+          }
         }
       } catch (err) {
         console.error('Failed to load exercises:', err);
@@ -69,11 +93,12 @@ const LogPage = () => {
     if (saved.length > 0) {
       setLocalSets(saved);
     } else {
+      const lastWeight = lastWeights[exercises[currentEx].key] || 0;
       setLocalSets([
-        { set_number: 1, weight_kg: 0, reps: 0, rpe: 0, is_warmup: false, saved: false },
+        { set_number: 1, weight_kg: lastWeight, reps: 0, rpe: 0, is_warmup: false, saved: false },
       ]);
     }
-  }, [currentEx, exercises, getSetsForExercise]);
+  }, [currentEx, exercises, getSetsForExercise, lastWeights]);
 
   const addSet = () => {
     const last = localSets[localSets.length - 1];
@@ -97,7 +122,6 @@ const LogPage = () => {
     const ok = await saveSet(exercises[currentEx].key, exercises[currentEx].name, set);
     if (ok) {
       setLocalSets(prev => prev.map((s, j) => j === i ? { ...s, saved: true } : s));
-      // Start rest timer
       const exType = exercises[currentEx].type;
       const restSeconds = exType === 'compound' ? 120 : 60;
       setRestTimer({ active: true, seconds: restSeconds });
@@ -199,6 +223,12 @@ const LogPage = () => {
           <div className="bg-secondary rounded-lg p-3 space-y-1 text-sm">
             <div>Best set: <span className="font-mono font-semibold">{bestSet.weight_kg} kg × {bestSet.reps}</span></div>
             <div>Est. 1RM: <span className="font-mono font-semibold">~{best1RM} kg</span></div>
+          </div>
+        )}
+
+        {lastWeights[exercises[currentEx].key] > 0 && !bestSet && (
+          <div className="text-xs text-muted-foreground bg-secondary rounded-lg px-3 py-2">
+            📊 Last PR: <span className="font-mono font-medium">{lastWeights[exercises[currentEx].key]} kg</span> — pre-filled above
           </div>
         )}
       </motion.div>
