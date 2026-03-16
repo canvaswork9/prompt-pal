@@ -6,7 +6,7 @@ const navItems = [
   { path: '/workout', icon: '🏋️', labelKey: 'workout' as const },
   { path: '/meal', icon: '🍽️', labelKey: 'meal' as const },
   { path: '/progress', icon: '📈', labelKey: 'progress' as const },
-  { path: '/coach', icon: '🤖', labelKey: 'coach' as const },
+  { path: '/settings', icon: '⚙️', labelKey: 'settings' as const },
 ];
 
 const BottomNav = () => {
