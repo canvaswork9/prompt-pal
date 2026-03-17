@@ -365,12 +365,14 @@ export type Database = {
       }
       user_profiles: {
         Row: {
+          activity_level: string | null
           age: number | null
           baseline_hr: number | null
           created_at: string | null
           display_name: string | null
           experience: string | null
           fitness_goal: string | null
+          height_cm: number | null
           id: string
           language: string | null
           sex: string | null
@@ -378,12 +380,14 @@ export type Database = {
           weight_kg: number | null
         }
         Insert: {
+          activity_level?: string | null
           age?: number | null
           baseline_hr?: number | null
           created_at?: string | null
           display_name?: string | null
           experience?: string | null
           fitness_goal?: string | null
+          height_cm?: number | null
           id: string
           language?: string | null
           sex?: string | null
@@ -391,12 +395,14 @@ export type Database = {
           weight_kg?: number | null
         }
         Update: {
+          activity_level?: string | null
           age?: number | null
           baseline_hr?: number | null
           created_at?: string | null
           display_name?: string | null
           experience?: string | null
           fitness_goal?: string | null
+          height_cm?: number | null
           id?: string
           language?: string | null
           sex?: string | null
@@ -420,6 +426,75 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      weight_goals: {
+        Row: {
+          created_at: string | null
+          goal_type: string
+          id: string
+          is_active: boolean | null
+          start_date: string
+          start_weight_kg: number
+          target_date: string | null
+          target_weight_kg: number
+          user_id: string
+          weekly_target_kg: number
+        }
+        Insert: {
+          created_at?: string | null
+          goal_type: string
+          id?: string
+          is_active?: boolean | null
+          start_date?: string
+          start_weight_kg: number
+          target_date?: string | null
+          target_weight_kg: number
+          user_id: string
+          weekly_target_kg?: number
+        }
+        Update: {
+          created_at?: string | null
+          goal_type?: string
+          id?: string
+          is_active?: boolean | null
+          start_date?: string
+          start_weight_kg?: number
+          target_date?: string | null
+          target_weight_kg?: number
+          user_id?: string
+          weekly_target_kg?: number
+        }
+        Relationships: []
+      }
+      weight_logs: {
+        Row: {
+          created_at: string | null
+          date: string
+          id: string
+          note: string | null
+          source: string | null
+          user_id: string
+          weight_kg: number
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          id?: string
+          note?: string | null
+          source?: string | null
+          user_id: string
+          weight_kg: number
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          id?: string
+          note?: string | null
+          source?: string | null
+          user_id?: string
+          weight_kg?: number
         }
         Relationships: []
       }
