@@ -15,7 +15,7 @@ const OnboardingPage = ({ onComplete }: OnboardingPageProps) => {
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingData>({
     display_name: '',
-    age: 28,
+    age: 25,
     sex: 'male',
     fitness_goal: 'muscle',
     experience: 'intermediate',
