@@ -18,6 +18,8 @@ import ProgressPage from "./pages/Progress";
 import CoachPage from "./pages/Coach";
 import AdminPage from "./pages/Admin";
 import SettingsPage from "./pages/Settings";
+import WeightPage from "./pages/Weight";
+import DashboardPage from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import AppSidebar from "./components/AppSidebar";
 import BottomNav from "./components/BottomNav";
