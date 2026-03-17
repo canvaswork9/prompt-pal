@@ -61,7 +61,6 @@ const LogPage = () => {
           setExercises(exList.map(e => ({ key: e.key, name: e.name_en, type: e.type })));
         }
 
-        // Fetch last PR weights for pre-fill
         const exKeys = exList.map(e => e.key);
         if (exKeys.length > 0) {
           const { data: prs } = await supabase
@@ -168,53 +167,81 @@ const LogPage = () => {
         ))}
       </div>
 
-      <motion.div key={currentEx} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card rounded-xl p-5 card-shadow space-y-4">
+      <motion.div key={currentEx} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card rounded-xl p-4 sm:p-5 card-shadow space-y-4">
         <h2 className="font-semibold text-lg">
           Exercise {currentEx + 1} of {exercises.length}: {exercises[currentEx].name}
         </h2>
 
-        {/* Rest Timer */}
         {restTimer.active && (
           <RestTimer seconds={restTimer.seconds} onDone={() => setRestTimer({ active: false, seconds: 0 })} />
         )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-muted-foreground text-xs uppercase border-b border-border">
-                <th className="py-2 text-left">Set</th>
-                <th className="py-2 text-center">kg</th>
-                <th className="py-2 text-center">Reps</th>
-                <th className="py-2 text-center">RPE</th>
-                <th className="py-2 text-center">Save</th>
-              </tr>
-            </thead>
-            <tbody>
-              {localSets.map((s, i) => (
-                <tr key={i} className="border-b border-border/50">
-                  <td className="py-2 font-mono">{s.is_warmup ? 'W' : s.set_number}</td>
-                  <td className="py-2">
-                    <Input type="number" value={s.weight_kg || ''} onChange={e => updateSet(i, 'weight_kg', +e.target.value)} className="w-20 text-center bg-secondary mx-auto h-8 font-mono" placeholder="0" />
-                  </td>
-                  <td className="py-2">
-                    <Input type="number" value={s.reps || ''} onChange={e => updateSet(i, 'reps', +e.target.value)} className="w-16 text-center bg-secondary mx-auto h-8 font-mono" placeholder="0" />
-                  </td>
-                  <td className="py-2">
-                    <Input type="number" value={s.rpe || ''} onChange={e => updateSet(i, 'rpe', +e.target.value)} className="w-16 text-center bg-secondary mx-auto h-8 font-mono" placeholder="0" />
-                  </td>
-                  <td className="py-2 text-center">
-                    {s.saved ? (
-                      <span className="text-status-green">✓</span>
-                    ) : (
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleSaveSet(i)} disabled={saving || s.weight_kg <= 0 || s.reps <= 0}>
-                        💾
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Card-based set layout (mobile-friendly) */}
+        <div className="space-y-2">
+          {localSets.map((s, i) => (
+            <div key={i} className={`rounded-xl border p-3 transition-colors ${
+              s.saved
+                ? 'border-status-green/40 bg-status-green/5'
+                : 'border-border bg-secondary/30'
+            }`}>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-mono font-medium text-muted-foreground">
+                  {s.is_warmup ? 'Warm-up' : `Set ${s.set_number}`}
+                </span>
+                {s.saved ? (
+                  <span className="text-status-green text-xs font-medium">✓ Saved</span>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-3 text-xs"
+                    onClick={() => handleSaveSet(i)}
+                    disabled={saving || s.weight_kg <= 0 || s.reps <= 0}
+                  >
+                    Save set
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide block text-center">kg</label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={s.weight_kg || ''}
+                    onChange={e => updateSet(i, 'weight_kg', +e.target.value)}
+                    className="h-11 text-center font-mono text-base bg-card"
+                    placeholder="0"
+                    step={0.5}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide block text-center">Reps</label>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    value={s.reps || ''}
+                    onChange={e => updateSet(i, 'reps', +e.target.value)}
+                    className="h-11 text-center font-mono text-base bg-card"
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide block text-center">RPE</label>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    value={s.rpe || ''}
+                    onChange={e => updateSet(i, 'rpe', +e.target.value)}
+                    className="h-11 text-center font-mono text-base bg-card"
+                    placeholder="1–10"
+                    min={1}
+                    max={10}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
         <Button variant="outline" size="sm" onClick={addSet}>+ Add Set</Button>
@@ -226,7 +253,7 @@ const LogPage = () => {
           </div>
         )}
 
-        {lastWeights[exercises[currentEx].key] > 0 && !bestSet && (
+        {lastWeights[exercises[currentEx]?.key] > 0 && !bestSet && (
           <div className="text-xs text-muted-foreground bg-secondary rounded-lg px-3 py-2">
             📊 Last PR: <span className="font-mono font-medium">{lastWeights[exercises[currentEx].key]} kg</span> — pre-filled above
           </div>

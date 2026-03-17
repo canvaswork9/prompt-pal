@@ -82,7 +82,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen bg-background">
       <AppSidebar />
-      <main className="lg:pl-60 pb-20 lg:pb-0">{children}</main>
+      <main className="lg:pl-60 pb-20 lg:pb-0" style={{ paddingBottom: 'max(5rem, calc(env(safe-area-inset-bottom) + 4rem))' }}>{children}</main>
       <BottomNav />
     </div>
   );

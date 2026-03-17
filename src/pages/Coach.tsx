@@ -84,7 +84,7 @@ const CoachPage = () => {
   if (!coachEnabled) return <DisabledFeaturePlaceholder name="AI Coach" />;
 
   return (
-    <div className="max-w-3xl mx-auto h-[calc(100vh-120px)] flex flex-col">
+    <div className="max-w-3xl mx-auto flex flex-col" style={{ height: 'calc(100dvh - 80px)' }}>
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-3">
@@ -95,9 +95,9 @@ const CoachPage = () => {
           </div>
           {todayScore !== null && (
             <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-              todayScore >= 75 ? 'bg-status-green-dim text-status-green' :
-              todayScore >= 50 ? 'bg-status-yellow-dim text-status-yellow' :
-              'bg-status-red-dim text-status-red'
+              todayScore >= 75 ? 'bg-status-green/10 text-status-green' :
+              todayScore >= 50 ? 'bg-status-yellow/10 text-status-yellow' :
+              'bg-status-red/10 text-status-red'
             }`}>
               Score: {todayScore}
             </div>
@@ -154,7 +154,7 @@ const CoachPage = () => {
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <form onSubmit={e => { e.preventDefault(); handleSend(input); }} className="flex gap-2">
           <Input
             value={input}
