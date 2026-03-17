@@ -12,27 +12,30 @@ const SettingsPage = () => {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [weight, setWeight] = useState(75);
+  const [height, setHeight] = useState(170);
   const [baselineHR, setBaselineHR] = useState(60);
   const [savedName, setSavedName] = useState('');
   const [savedWeight, setSavedWeight] = useState(75);
+  const [savedHeight, setSavedHeight] = useState(170);
   const [savedHR, setSavedHR] = useState(60);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const isDirty = name !== savedName || weight !== savedWeight || baselineHR !== savedHR;
+  const isDirty = name !== savedName || weight !== savedWeight || baselineHR !== savedHR || height !== savedHeight;
 
   useEffect(() => {
     async function load() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { setLoading(false); return; }
-        const { data } = await supabase.from('user_profiles').select('display_name, weight_kg, baseline_hr, language').eq('id', user.id).maybeSingle();
+        const { data } = await supabase.from('user_profiles').select('display_name, weight_kg, baseline_hr, language, height_cm').eq('id', user.id).maybeSingle();
         if (data) {
           const n = data.display_name || '';
           const w = Number(data.weight_kg) || 75;
           const hr = data.baseline_hr || 60;
-          setName(n); setWeight(w); setBaselineHR(hr);
-          setSavedName(n); setSavedWeight(w); setSavedHR(hr);
+          const h = (data as any).height_cm || 170;
+          setName(n); setWeight(w); setBaselineHR(hr); setHeight(h);
+          setSavedName(n); setSavedWeight(w); setSavedHR(hr); setSavedHeight(h);
           if (data.language === 'th' || data.language === 'en') setLang(data.language);
         }
       } catch (err) {
@@ -52,14 +55,16 @@ const SettingsPage = () => {
         display_name: name,
         weight_kg: weight,
         baseline_hr: baselineHR,
+        height_cm: height,
         language: lang,
         updated_at: new Date().toISOString(),
-      }).eq('id', user.id);
+      } as any).eq('id', user.id);
       if (error) throw error;
       toast.success('Settings saved!');
       setSavedName(name);
       setSavedWeight(weight);
       setSavedHR(baselineHR);
+      setSavedHeight(height);
     } catch (err: any) {
       toast.error(err.message || 'Failed to save');
     } finally {
@@ -102,6 +107,10 @@ const SettingsPage = () => {
         <div>
           <label className="text-sm text-muted-foreground block mb-1">Weight (kg): <span className="font-mono text-primary">{weight}</span></label>
           <Slider value={[weight]} onValueChange={v => setWeight(v[0])} min={40} max={150} step={0.5} />
+        </div>
+        <div>
+          <label className="text-sm text-muted-foreground block mb-1">{t('height')} (cm): <span className="font-mono text-primary">{height}</span></label>
+          <Slider value={[height]} onValueChange={v => setHeight(v[0])} min={140} max={220} step={1} />
         </div>
         <div>
           <label className="text-sm text-muted-foreground block mb-1">Baseline HR: <span className="font-mono text-primary">{baselineHR} bpm</span></label>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '@/lib/i18n';
 import { calculateMacros } from '@/lib/decision-engine';
+import { calculateCalorieTargets } from '@/lib/tdee';
 import { MEAL_DB } from '@/lib/exercise-db';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,6 +12,7 @@ import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import DisabledFeaturePlaceholder from '@/components/DisabledFeaturePlaceholder';
 import SkeletonLoader from '@/components/SkeletonLoader';
 import type { Meal, MealSlot } from '@/lib/types';
+import type { CalorieTargets } from '@/lib/tdee';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -36,6 +38,7 @@ const MealPage = () => {
   const [dbLogIds, setDbLogIds] = useState<Map<string, string>>(new Map());
   const [customMeals, setCustomMeals] = useState<Record<string, Meal[]>>({});
   const [reloadKey, setReloadKey] = useState(0);
+  const [tdeeTargets, setTdeeTargets] = useState<CalorieTargets | null>(null);
 
   const loadCustomMeals = useCallback(async (userId: string) => {
     const { data } = await supabase.from('custom_meals').select('*').eq('user_id', userId);
@@ -57,7 +60,7 @@ const MealPage = () => {
         if (!user) { setLoading(false); return; }
 
         const [{ data: profile }, { data: todayCheckin }, { data: logs }] = await Promise.all([
-          supabase.from('user_profiles').select('weight_kg, fitness_goal').eq('id', user.id).maybeSingle(),
+          supabase.from('user_profiles').select('weight_kg, fitness_goal, height_cm, age, sex, activity_level').eq('id', user.id).maybeSingle(),
           supabase.from('daily_checkins').select('nutrition_load').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
           supabase.from('meal_logs').select('*').eq('user_id', user.id).eq('date', todayStr()),
         ]);
@@ -65,7 +68,19 @@ const MealPage = () => {
         if (profile?.weight_kg) setWeightKg(Number(profile.weight_kg));
         if (profile?.fitness_goal) setFitnessGoal(profile.fitness_goal);
 
-        // Use today's checkin, or fall back to the most recent one
+        // Calculate TDEE if profile has enough data
+        if (profile) {
+          const targets = calculateCalorieTargets(
+            Number(profile.weight_kg) || 70,
+            (profile as any).height_cm || 170,
+            (profile as any).age || 30,
+            (profile as any).sex || 'other',
+            ((profile as any).activity_level as any) || 'moderate',
+            (profile.fitness_goal as any) || 'general'
+          );
+          setTdeeTargets(targets);
+        }
+
         let checkin = todayCheckin;
         if (!checkin?.nutrition_load) {
           const { data: latestCheckin } = await supabase
@@ -111,7 +126,10 @@ const MealPage = () => {
     load();
   }, [reloadKey, loadCustomMeals]);
 
-  const macros = calculateMacros(weightKg, fitnessGoal as any, nutritionLoad as any);
+  // Use TDEE targets if available, otherwise fall back to simple macros
+  const macros = tdeeTargets
+    ? { calories: tdeeTargets.calorieTarget, protein: tdeeTargets.proteinTarget, carbs: tdeeTargets.carbTarget, fat: tdeeTargets.fatTarget }
+    : calculateMacros(weightKg, fitnessGoal as any, nutritionLoad as any);
 
   const getAllMealsForSlot = useCallback((slot: MealSlotKey): Meal[] => {
     const base = MEAL_DB[slot] || [];
@@ -188,24 +206,34 @@ const MealPage = () => {
       </div>
 
       <div className="bg-card rounded-xl p-5 card-shadow">
-        <div className="grid grid-cols-4 gap-4 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
           <div>
             <div className="text-xs text-muted-foreground uppercase">Calories</div>
-            <div className="font-mono font-bold text-lg">{totals.calories}<span className="text-xs text-muted-foreground font-normal">/{macros.calories}</span></div>
+            <div className="font-mono font-bold text-base sm:text-lg">{totals.calories}<span className="text-xs text-muted-foreground font-normal">/{macros.calories}</span></div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground uppercase">Protein</div>
-            <div className="font-mono font-bold text-lg text-status-green">{totals.protein}<span className="text-xs text-muted-foreground font-normal">/{macros.protein}g</span></div>
+            <div className="font-mono font-bold text-base sm:text-lg text-status-green">{totals.protein}<span className="text-xs text-muted-foreground font-normal">/{macros.protein}g</span></div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground uppercase">Carbs</div>
-            <div className="font-mono font-bold text-lg text-primary">{totals.carbs}<span className="text-xs text-muted-foreground font-normal">/{macros.carbs}g</span></div>
+            <div className="font-mono font-bold text-base sm:text-lg text-primary">{totals.carbs}<span className="text-xs text-muted-foreground font-normal">/{macros.carbs}g</span></div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground uppercase">Fat</div>
-            <div className="font-mono font-bold text-lg text-accent">{totals.fat}<span className="text-xs text-muted-foreground font-normal">/{macros.fat}g</span></div>
+            <div className="font-mono font-bold text-base sm:text-lg text-accent">{totals.fat}<span className="text-xs text-muted-foreground font-normal">/{macros.fat}g</span></div>
           </div>
         </div>
+
+        {tdeeTargets && (
+          <div className="text-xs text-muted-foreground bg-secondary rounded-lg px-3 py-2 mt-3">
+            TDEE: {tdeeTargets.tdee} kcal ·
+            Target: {tdeeTargets.calorieTarget} kcal/day
+            ({tdeeTargets.deficit > 0 ? '+' : ''}{tdeeTargets.deficit} kcal
+            {tdeeTargets.deficit < 0 ? ' deficit' : tdeeTargets.deficit > 0 ? ' surplus' : ''})
+          </div>
+        )}
+
         <div className="mt-4 space-y-2">
           <div className="flex justify-between text-xs text-muted-foreground"><span>Calories</span><span>{totals.calories} / {macros.calories} kcal</span></div>
           <div className="h-2 bg-secondary rounded-full overflow-hidden">

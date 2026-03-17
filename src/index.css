@@ -131,3 +131,14 @@
     box-shadow: 0 0 0 1px hsl(var(--border)), 0 4px 16px -4px rgba(0,0,0,0.4);
   }
 }
+
+/* iOS safe area support */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+.safe-pb {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}

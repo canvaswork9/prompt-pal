@@ -82,7 +82,6 @@ const ProgressPage = () => {
     { label: 'Badges', value: `${gam.badges.length}`, sub: 'earned' },
   ];
 
-  // Heatmap calendar generation
   const generateHeatmap = () => {
     const days: { date: string; status: string; score: number }[] = [];
     const today = new Date();
@@ -115,7 +114,6 @@ const ProgressPage = () => {
     return 'hsl(var(--status-red))';
   };
 
-  // Sleep insight
   const getSleepInsight = () => {
     if (sleepData.length < 5) return null;
     const good = sleepData.filter(d => d.sleep >= 7.5);
@@ -148,7 +146,6 @@ const ProgressPage = () => {
 
       <ChallengeCards streakDays={gam.streakDays} badges={gam.badges} greenDays={greenDays} workoutCount={workoutCount} />
 
-      {/* Readiness Timeline */}
       {chartData.length > 0 && (
         <div className="bg-card rounded-xl p-5 card-shadow">
           <h3 className="font-semibold mb-4">Readiness Timeline</h3>
@@ -167,7 +164,10 @@ const ProgressPage = () => {
       {/* Training Heatmap */}
       {Object.keys(heatmapData).length > 0 && (
         <div className="bg-card rounded-xl p-5 card-shadow">
-          <h3 className="font-semibold mb-4">📅 Training Heatmap (12 weeks)</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">📅 Training Heatmap (12 weeks)</h3>
+            <span className="text-[10px] text-muted-foreground lg:hidden">scroll →</span>
+          </div>
           <div className="flex gap-1 overflow-x-auto">
             {weeks.map((week, wi) => (
               <div key={wi} className="flex flex-col gap-1">
@@ -175,7 +175,7 @@ const ProgressPage = () => {
                   <div
                     key={day.date}
                     title={`${day.date}: ${day.score > 0 ? `Score ${day.score} (${day.status})` : 'No data'}`}
-                    className={`w-3 h-3 rounded-sm cursor-pointer hover:ring-1 hover:ring-foreground/30 ${getHeatColor(day.status)}`}
+                    className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-sm cursor-pointer hover:ring-1 hover:ring-foreground/30 ${getHeatColor(day.status)}`}
                   />
                 ))}
               </div>
@@ -231,31 +231,25 @@ const ProgressPage = () => {
         </div>
       )}
 
-      {/* Personal Records */}
+      {/* Personal Records — card list */}
       {prs.length > 0 && (
         <div className="bg-card rounded-xl p-5 card-shadow">
           <h3 className="font-semibold mb-4">Personal Records</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-muted-foreground text-xs uppercase border-b border-border">
-                  <th className="text-left py-2">Exercise</th>
-                  <th className="text-right py-2">Est. 1RM</th>
-                  <th className="text-right py-2">Best Set</th>
-                  <th className="text-right py-2">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {prs.map(pr => (
-                  <tr key={pr.exercise} className="border-b border-border/50">
-                    <td className="py-2 font-medium">{pr.exercise}</td>
-                    <td className="py-2 text-right font-mono">{pr.est1rm}</td>
-                    <td className="py-2 text-right font-mono text-muted-foreground">{pr.best}</td>
-                    <td className="py-2 text-right text-muted-foreground">{pr.date}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-0 divide-y divide-border/50">
+            {prs.map(pr => (
+              <div key={pr.exercise} className="flex items-center justify-between py-3">
+                <div>
+                  <div className="text-sm font-medium capitalize">
+                    {pr.exercise.replace(/_/g, ' ')}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{pr.date}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-mono font-semibold">{pr.est1rm}</div>
+                  <div className="text-xs font-mono text-muted-foreground">{pr.best}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

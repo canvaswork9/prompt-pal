@@ -18,6 +18,8 @@ import ProgressPage from "./pages/Progress";
 import CoachPage from "./pages/Coach";
 import AdminPage from "./pages/Admin";
 import SettingsPage from "./pages/Settings";
+import WeightPage from "./pages/Weight";
+import DashboardPage from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import AppSidebar from "./components/AppSidebar";
 import BottomNav from "./components/BottomNav";
@@ -46,6 +48,7 @@ const OnboardingWrapper = () => {
         sex: data.sex,
         fitness_goal: data.fitness_goal,
         experience: data.experience,
+        height_cm: data.height_cm || 170,
         baseline_hr: 60,
         language: 'en',
         updated_at: new Date().toISOString(),
@@ -82,7 +85,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen bg-background">
       <AppSidebar />
-      <main className="lg:pl-60 pb-20 lg:pb-0">{children}</main>
+      <main className="lg:pl-60 pb-20 lg:pb-0" style={{ paddingBottom: 'max(5rem, calc(env(safe-area-inset-bottom) + 4rem))' }}>{children}</main>
       <BottomNav />
     </div>
   );
@@ -107,6 +110,8 @@ const App = () => (
             <Route path="/progress" element={<ProtectedRoute><ProgressPage /></ProtectedRoute>} />
             <Route path="/coach" element={<ProtectedRoute><CoachPage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+            <Route path="/weight" element={<ProtectedRoute><WeightPage /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
