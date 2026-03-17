@@ -93,6 +93,12 @@ const translations = {
     password: 'รหัสผ่าน',
     logout: 'ออกจากระบบ',
     skip: 'ข้ามไปก่อน',
+    height: 'ส่วนสูง',
+    tdee: 'แคลอรี่เป้าหมาย',
+    weight: 'น้ำหนัก',
+    on_track: 'อยู่ในเส้นทาง',
+    off_track: 'เบี่ยงจากเส้นทาง',
+    dashboard: 'แดชบอร์ด',
   },
   en: {
     app_name: 'FitDecide',
