@@ -191,6 +191,12 @@ const translations = {
     password: 'Password',
     logout: 'Log out',
     skip: 'Skip for now',
+    height: 'Height',
+    tdee: 'Calorie Target',
+    weight: 'Weight',
+    on_track: 'On Track',
+    off_track: 'Off Track',
+    dashboard: 'Dashboard',
   },
 } as const;
 

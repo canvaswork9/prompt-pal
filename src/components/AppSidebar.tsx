@@ -10,6 +10,8 @@ const sidebarItems = [
   { path: '/log', icon: '📝', labelKey: 'log' as const },
   { path: '/meal', icon: '🍽️', labelKey: 'meal' as const },
   { path: '/progress', icon: '📈', labelKey: 'progress' as const },
+  { path: '/weight', icon: '⚖️', labelKey: 'weight' as const },
+  { path: '/dashboard', icon: '📊', labelKey: 'dashboard' as const },
   { path: '/coach', icon: '🤖', labelKey: 'coach' as const },
   { path: '/settings', icon: '⚙️', labelKey: 'settings' as const },
   { path: '/admin', icon: '🔧', labelKey: 'admin' as const },
