@@ -19,6 +19,7 @@ const OnboardingPage = ({ onComplete }: OnboardingPageProps) => {
     sex: 'male',
     fitness_goal: 'muscle',
     experience: 'intermediate',
+    height_cm: 170,
   });
 
   const goals: { key: FitnessGoal; label: string; desc: string }[] = [
@@ -45,7 +46,6 @@ const OnboardingPage = ({ onComplete }: OnboardingPageProps) => {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Progress dots */}
         <div className="flex justify-center gap-2 mb-8">
           {[0, 1, 2].map(i => (
             <div key={i} className={`w-2.5 h-2.5 rounded-full transition-colors duration-300 ${i === step ? 'bg-primary' : i < step ? 'bg-primary/50' : 'bg-secondary'}`} />
@@ -81,6 +81,17 @@ const OnboardingPage = ({ onComplete }: OnboardingPageProps) => {
                   <div>
                     <label className="text-sm font-medium mb-2 block">{t('age')}: <span className="font-mono text-primary">{data.age}</span></label>
                     <Slider value={[data.age]} onValueChange={v => setData(d => ({ ...d, age: v[0] }))} min={16} max={65} step={1} className="py-2" />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      {t('height')}: <span className="font-mono text-primary">{data.height_cm ?? 170} cm</span>
+                    </label>
+                    <Slider
+                      value={[data.height_cm ?? 170]}
+                      onValueChange={v => setData(d => ({ ...d, height_cm: v[0] }))}
+                      min={140} max={220} step={1} className="py-2"
+                    />
                   </div>
 
                   <div>

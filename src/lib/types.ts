@@ -7,6 +7,7 @@ export type NutritionLoad = 'surplus' | 'maintenance' | 'deficit';
 export type ReadinessStatus = 'Green' | 'Yellow' | 'Red';
 export type Sex = 'male' | 'female' | 'other';
 export type MealSlot = 'breakfast' | 'pre_workout' | 'lunch' | 'dinner' | 'snack';
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
 
 export interface UserProfile {
   id: string;
@@ -14,6 +15,8 @@ export interface UserProfile {
   age: number;
   sex: Sex;
   weight_kg: number;
+  height_cm: number;
+  activity_level: ActivityLevel;
   fitness_goal: FitnessGoal;
   experience: ExperienceLevel;
   baseline_hr: number;
@@ -89,4 +92,5 @@ export interface OnboardingData {
   sex: Sex;
   fitness_goal: FitnessGoal;
   experience: ExperienceLevel;
+  height_cm?: number;
 }
