@@ -106,9 +106,16 @@ const MealPage = () => {
             if (log.meal_slot) {
               if (log.eaten) eaten.add(log.meal_slot);
               ids.set(log.meal_slot, log.id);
-              const slotMeals = MEAL_DB[log.meal_slot as MealSlotKey];
-              if (slotMeals && log.meal_name) {
-                const idx = slotMeals.findIndex(m => m.name_th === log.meal_name || m.name_en === log.meal_name);
+              if (log.meal_name) {
+                // Search both MEAL_DB and custom meals, match name_th OR name_en
+                const baseMeals = MEAL_DB[log.meal_slot as MealSlotKey] || [];
+                const customSlotMeals = customMeals[log.meal_slot] || [];
+                const allSlotMeals = [...baseMeals, ...customSlotMeals];
+                const idx = allSlotMeals.findIndex(
+                  m => m.name_th === log.meal_name
+                    || (m as any).name_en === log.meal_name
+                    || m.name_th === log.meal_name
+                );
                 if (idx >= 0) selections.set(log.meal_slot, idx);
               }
             }
@@ -159,7 +166,8 @@ const MealPage = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const nowEaten = !eatenSlots.has(slot);
-    const mealName = lang === 'th' ? meal.name_th : (meal.name_en || meal.name_th);
+    // Always save name_th as canonical key — avoids lang mismatch on restore
+    const mealName = meal.name_th;
     try {
       const existingId = dbLogIds.get(slot);
       if (existingId) {
@@ -185,7 +193,8 @@ const MealPage = () => {
     const existingId = dbLogIds.get(slot);
     if (existingId) {
       const meal = meals[nextIdx];
-      const mealName = lang === 'th' ? meal.name_th : (meal.name_en || meal.name_th);
+      // Always save name_th as canonical key
+      const mealName = meal.name_th;
       await supabase.from('meal_logs').update({ meal_name: mealName, calories: meal.kcal, protein_g: meal.protein, carbs_g: meal.carbs, fat_g: meal.fat }).eq('id', existingId);
     }
   };
