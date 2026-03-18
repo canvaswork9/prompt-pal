@@ -102,7 +102,13 @@ const WorkoutPage = () => {
       </div>
 
       <div className="space-y-4">
-        {exercises.map((ex, i) => (
+        {exercises.length === 0 ? (
+          <div className="bg-card rounded-xl p-6 card-shadow text-center space-y-2">
+            <div className="text-4xl">😴</div>
+            <h3 className="font-semibold">Rest Day</h3>
+            <p className="text-sm text-muted-foreground">Your body needs recovery today. Light movement like walking or stretching is fine.</p>
+          </div>
+        ) : exercises.map((ex, i) => (
           <motion.div key={ex.key} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }} className="bg-card rounded-xl p-4 card-shadow hover:card-shadow-hover transition-shadow">
             <div className="flex items-start justify-between mb-2">
               <div>

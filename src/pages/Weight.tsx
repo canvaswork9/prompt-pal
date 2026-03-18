@@ -168,7 +168,7 @@ const WeightPage = () => {
   });
   const weekChange = weekAgo.length >= 2 ? weekAgo[weekAgo.length - 1].weight_kg - weekAgo[0].weight_kg : 0;
 
-  const trackStatus = goal ? isOnTrack(goal.start_weight_kg, currentWeight, goal.start_date, goal.weekly_target_kg) : null;
+  const trackStatus = goal ? isOnTrack(goal.start_weight_kg, currentWeight, goal.start_date || todayStr(), goal.weekly_target_kg) : null;
   const weeksEstimate = goal ? weeksToGoal(currentWeight, goal.target_weight_kg, goal.weekly_target_kg) : null;
 
   return (
