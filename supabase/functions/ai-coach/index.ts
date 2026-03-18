@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
 
     // Fetch user context in parallel
     const [profileRes, checkinsRes, prsRes] = await Promise.all([
-      supabase.from("user_profiles").select("display_name, age, fitness_goal, experience, weight_kg, language").eq("id", userId).maybeSingle(),
+      supabase.from("user_profiles").select("display_name, age, fitness_goal, experience, weight_kg, height_cm, activity_level, language").eq("id", userId).maybeSingle(),
       supabase.from("daily_checkins").select("date, readiness_score, status, training_split, sleep_hours").eq("user_id", userId).order("date", { ascending: false }).limit(7),
       supabase.from("personal_records").select("exercise_key, estimated_1rm, achieved_at").eq("user_id", userId).order("estimated_1rm", { ascending: false }).limit(5),
     ]);
@@ -30,11 +30,23 @@ Deno.serve(async (req) => {
     const prs = prsRes.data || [];
     const todayCheckin = checkins[0];
 
+    // Calculate TDEE inline
+    const calcTDEE = (w: number, h: number, a: number, sex: string, act: string) => {
+      const base = (10 * w) + (6.25 * h) - (5 * a);
+      const bmr = sex === 'female' ? base - 161 : base + 5;
+      const mult: Record<string, number> = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9 };
+      return Math.round(bmr * (mult[act] || 1.55));
+    };
+    const tdee = profile?.weight_kg && (profile as any)?.height_cm && profile?.age
+      ? calcTDEE(Number(profile.weight_kg), Number((profile as any).height_cm), Number(profile.age), 'male', (profile as any).activity_level || 'moderate')
+      : null;
+
     const systemPrompt = `You are FitCoach — a friendly, expert personal trainer built into FitDecide.
 You have access to this user's complete data:
 
 USER PROFILE:
-Name: ${profile?.display_name || "User"}, Age: ${profile?.age || "unknown"}, Goal: ${profile?.fitness_goal || "general"}, Experience: ${profile?.experience || "beginner"}, Weight: ${profile?.weight_kg || "unknown"}kg
+Name: ${profile?.display_name || "User"}, Age: ${profile?.age || "unknown"}, Goal: ${profile?.fitness_goal || "general"}, Experience: ${profile?.experience || "beginner"}, Weight: ${profile?.weight_kg || "unknown"}kg, Height: ${(profile as any)?.height_cm || "unknown"}cm
+Activity: ${(profile as any)?.activity_level || "moderate"}${tdee ? `, TDEE: ~${tdee} kcal/day` : ""}
 
 TODAY'S STATUS:
 ${todayCheckin ? `Score: ${todayCheckin.readiness_score}, Status: ${todayCheckin.status}, Split: ${todayCheckin.training_split}, Sleep: ${todayCheckin.sleep_hours}h` : "No check-in today"}
