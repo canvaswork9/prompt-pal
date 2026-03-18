@@ -190,12 +190,42 @@ const MealPage = () => {
     const currentIdx = mealSelections.get(slot) ?? 0;
     const nextIdx = (currentIdx + 1) % meals.length;
     setMealSelections(prev => new Map(prev).set(slot, nextIdx));
-    const existingId = dbLogIds.get(slot);
-    if (existingId) {
-      const meal = meals[nextIdx];
-      // Always save name_th as canonical key
-      const mealName = meal.name_th;
-      await supabase.from('meal_logs').update({ meal_name: mealName, calories: meal.kcal, protein_g: meal.protein, carbs_g: meal.carbs, fat_g: meal.fat }).eq('id', existingId);
+
+    const meal = meals[nextIdx];
+    const mealName = meal.name_th; // canonical key
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const existingId = dbLogIds.get(slot);
+      if (existingId) {
+        // Update existing log row
+        await supabase.from('meal_logs')
+          .update({ meal_name: mealName, calories: meal.kcal, protein_g: meal.protein, carbs_g: meal.carbs, fat_g: meal.fat })
+          .eq('id', existingId);
+      } else {
+        // No log row yet — create one with eaten=false to persist the selection
+        const { data: inserted, error } = await supabase.from('meal_logs')
+          .insert({
+            user_id: user.id,
+            date: todayStr(),
+            meal_slot: slot,
+            meal_name: mealName,
+            eaten: false,
+            calories: meal.kcal,
+            protein_g: meal.protein,
+            carbs_g: meal.carbs,
+            fat_g: meal.fat,
+          })
+          .select('id')
+          .single();
+        if (!error && inserted) {
+          setDbLogIds(prev => new Map(prev).set(slot, inserted.id));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to save meal swap:', err);
     }
   };
 
