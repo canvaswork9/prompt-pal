@@ -224,11 +224,11 @@ export function useGamification() {
       if (newStreak === m.days) {
         const existing = state.badges.find(b => b.badge_key === m.key);
         if (!existing) {
-          await supabase.from('user_badges').insert({
+          await supabase.from('user_badges').upsert({
             user_id: user.id,
             badge_key: m.key,
             badge_name: `${m.days}-Day Streak`,
-          });
+          }, { onConflict: 'user_id,badge_key' });
           await awardXP(m.xp, 'streak_milestone', `${m.days}-day streak`);
         }
       }
