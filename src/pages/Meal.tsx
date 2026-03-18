@@ -59,10 +59,12 @@ const MealPage = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { setLoading(false); return; }
 
-        const [{ data: profile }, { data: todayCheckin }, { data: logs }] = await Promise.all([
+        // Fetch everything in parallel — including custom_meals
+        const [{ data: profile }, { data: todayCheckin }, { data: logs }, { data: rawCustomMeals }] = await Promise.all([
           supabase.from('user_profiles').select('weight_kg, fitness_goal, height_cm, age, sex, activity_level').eq('id', user.id).maybeSingle(),
           supabase.from('daily_checkins').select('nutrition_load').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
           supabase.from('meal_logs').select('*').eq('user_id', user.id).eq('date', todayStr()),
+          supabase.from('custom_meals').select('*').eq('user_id', user.id),
         ]);
 
         if (profile?.weight_kg) setWeightKg(Number(profile.weight_kg));
@@ -96,7 +98,20 @@ const MealPage = () => {
 
         if (checkin?.nutrition_load) setNutritionLoad(checkin.nutrition_load);
 
-        await loadCustomMeals(user.id);
+        // Build customMeals map from raw data (not React state — state update is async)
+        const freshCustomMeals: Record<string, Meal[]> = {};
+        if (rawCustomMeals && rawCustomMeals.length > 0) {
+          rawCustomMeals.forEach((m: any) => {
+            const slot = m.meal_slot || 'snack';
+            if (!freshCustomMeals[slot]) freshCustomMeals[slot] = [];
+            freshCustomMeals[slot].push({
+              name_th: m.name, name_en: m.name,
+              kcal: m.kcal, protein: Number(m.protein),
+              carbs: Number(m.carbs), fat: Number(m.fat),
+            });
+          });
+          setCustomMeals(freshCustomMeals);
+        }
 
         if (logs && logs.length > 0) {
           const eaten = new Set<string>();
@@ -107,14 +122,12 @@ const MealPage = () => {
               if (log.eaten) eaten.add(log.meal_slot);
               ids.set(log.meal_slot, log.id);
               if (log.meal_name) {
-                // Search both MEAL_DB and custom meals, match name_th OR name_en
+                // Use freshCustomMeals (raw data) — NOT customMeals state which hasn't updated yet
                 const baseMeals = MEAL_DB[log.meal_slot as MealSlotKey] || [];
-                const customSlotMeals = customMeals[log.meal_slot] || [];
+                const customSlotMeals = freshCustomMeals[log.meal_slot] || [];
                 const allSlotMeals = [...baseMeals, ...customSlotMeals];
                 const idx = allSlotMeals.findIndex(
-                  m => m.name_th === log.meal_name
-                    || (m as any).name_en === log.meal_name
-                    || m.name_th === log.meal_name
+                  m => m.name_th === log.meal_name || (m as any).name_en === log.meal_name
                 );
                 if (idx >= 0) selections.set(log.meal_slot, idx);
               }
@@ -131,7 +144,7 @@ const MealPage = () => {
       }
     }
     load();
-  }, [reloadKey, loadCustomMeals]);
+  }, [reloadKey]);
 
   // Use TDEE targets if available, otherwise fall back to simple macros
   const macros = tdeeTargets
