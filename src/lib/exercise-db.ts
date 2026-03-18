@@ -88,6 +88,17 @@ export function selectExercises(
   const expIndex = experience === 'beginner' ? 0 : experience === 'intermediate' ? 1 : 2;
   const minLevelIndex = (level: string) => level === 'beginner' ? 0 : level === 'intermediate' ? 1 : 2;
 
+  // Recovery day — return mobility/rest exercises, no heavy lifting
+  if (split === 'Recovery') {
+    return [
+      { key: 'foam_roll', name_en: 'Foam Rolling', name_th: 'โฟมโรลลิ่ง', muscles: 'Full Body', split: 'recovery', type: 'mobility', green_sets: '10 min', yellow_sets: '10 min', min_level: 'beginner', form_tips_en: ['Roll slowly over tight areas', 'Pause 20–30s on tender spots'], form_tips_th: ['กลิ้งช้าๆ บริเวณที่ตึง', 'หยุดค้าง 20–30 วิ'] },
+      { key: 'cat_cow', name_en: 'Cat-Cow Stretch', name_th: 'ยืดแมว-วัว', muscles: 'Spine, Core', split: 'recovery', type: 'mobility', green_sets: '3×10', yellow_sets: '3×10', min_level: 'beginner', form_tips_en: ['Inhale on cow, exhale on cat', 'Move slowly and deliberately'], form_tips_th: ['หายใจเข้าตอนแอ่น', 'เคลื่อนไหวช้าๆ'] },
+      { key: 'hip_flexor_stretch', name_en: 'Hip Flexor Stretch', name_th: 'ยืดสะโพก', muscles: 'Hip Flexors', split: 'recovery', type: 'mobility', green_sets: '3×30s each', yellow_sets: '3×30s each', min_level: 'beginner', form_tips_en: ['Keep torso upright', 'Push hips gently forward'], form_tips_th: ['ลำตัวตรง', 'ดันสะโพกไปข้างหน้าเบาๆ'] },
+      { key: 'thoracic_rotation', name_en: 'Thoracic Rotation', name_th: 'หมุนหลังส่วนบน', muscles: 'Upper Back', split: 'recovery', type: 'mobility', green_sets: '2×10 each', yellow_sets: '2×10 each', min_level: 'beginner', form_tips_en: ['Keep hips stable', 'Rotate elbow toward ceiling'], form_tips_th: ['สะโพกนิ่ง', 'หมุนศอกขึ้น'] },
+      { key: 'easy_walk', name_en: 'Easy Walk', name_th: 'เดินเบาๆ', muscles: 'Full Body', split: 'recovery', type: 'cardio', green_sets: '20–30 min', yellow_sets: '15 min', min_level: 'beginner', form_tips_en: ['Conversational pace only', 'No incline or intensity'], form_tips_th: ['เดินแบบคุยได้สบาย', 'ไม่ต้องหัก'] },
+    ] as any[];
+  }
+
   let splitFilters: string[] = [];
   if (split === 'Lower Body') splitFilters = ['lower'];
   else if (split === 'Upper Body') splitFilters = ['upper_chest', 'upper_back', 'upper_shoulders', 'upper_arms'];
@@ -101,6 +112,7 @@ export function selectExercises(
     (!e.avoid_when || e.avoid_when !== soreness)
   );
 
-  const limit = status === 'Green' ? 8 : status === 'Yellow' ? 6 : 0;
+  // Red status: limit=4 (was 0 — caused empty list bug)
+  const limit = status === 'Green' ? 8 : status === 'Yellow' ? 6 : 4;
   return pool.slice(0, limit);
 }
