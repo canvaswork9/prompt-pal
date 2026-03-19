@@ -20,7 +20,8 @@ const LogPage = () => {
   const navigate = useNavigate();
   const logEnabled = useFeatureFlag('progressive_overload');
   const { loading, saving, saveSet, autoSaveDuration, finishSession, getSetsForExercise, sessionStartFromDB } = useWorkout();
-  const [exercises, setExercises] = useState<{ key: string; name: string; type: string }[]>([]);
+  const [exercises, setExercises] = useState<{ key: string; name: string; type: string; green_sets?: string; yellow_sets?: string; muscles?: string }[]>([]);
+  const [checkinStatus, setCheckinStatus] = useState<string>('Yellow');
   const [currentEx, setCurrentEx] = useState(0);
   const [localSets, setLocalSets] = useState<WorkingSet[]>([]);
   // Use DB created_at if available (returning user), otherwise fallback to mount time
@@ -49,10 +50,14 @@ const LogPage = () => {
             (profile?.experience as any) || 'intermediate',
             (checkin.muscle_soreness as any) || 'none'
           );
+          setCheckinStatus(checkin.status || 'Yellow');
           setExercises(exList.map(e => ({
             key: e.key,
             name: lang === 'th' ? e.name_th : e.name_en,
             type: e.type,
+            green_sets: (e as any).green_sets,
+            yellow_sets: (e as any).yellow_sets,
+            muscles: (e as any).muscles,
           })));
         } else {
           exList = [
@@ -180,9 +185,35 @@ const LogPage = () => {
       </div>
 
       <motion.div key={currentEx} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card rounded-xl p-4 sm:p-5 card-shadow space-y-4">
-        <h2 className="font-semibold text-lg">
-          Exercise {currentEx + 1} of {exercises.length}: {exercises[currentEx].name}
-        </h2>
+        {/* Header: progress + plan info */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground font-mono">Exercise {currentEx + 1} of {exercises.length}</span>
+            <div className="flex gap-1">
+              {exercises.map((_, idx) => (
+                <div key={idx} className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                  idx < currentEx ? 'bg-status-green' : idx === currentEx ? 'bg-primary' : 'bg-secondary'
+                }`} />
+              ))}
+            </div>
+          </div>
+          <h2 className="font-semibold text-lg">{exercises[currentEx].name}</h2>
+          <div className="flex flex-wrap gap-1.5">
+            {exercises[currentEx].muscles && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">
+                {exercises[currentEx].muscles}
+              </span>
+            )}
+            {(exercises[currentEx].green_sets || exercises[currentEx].yellow_sets) && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono">
+                Target: {checkinStatus === 'Green' ? exercises[currentEx].green_sets : exercises[currentEx].yellow_sets}
+              </span>
+            )}
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">
+              Rest: {exercises[currentEx].type === 'compound' ? '2 min' : '90s'}
+            </span>
+          </div>
+        </div>
 
         {restTimer.active && (
           <RestTimer seconds={restTimer.seconds} onDone={() => setRestTimer({ active: false, seconds: 0 })} />
