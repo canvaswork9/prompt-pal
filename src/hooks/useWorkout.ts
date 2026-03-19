@@ -113,17 +113,6 @@ export function useWorkout() {
       .single();
 
     if (error) {
-      // If insert fails (e.g. race condition), try to fetch existing session
-      const { data: existing } = await supabase
-        .from('workout_sessions')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('date', todayStr())
-        .maybeSingle();
-      if (existing) {
-        setSessionId(existing.id);
-        return existing.id;
-      }
       toast.error('Failed to create session');
       return null;
     }
@@ -151,7 +140,7 @@ export function useWorkout() {
         set_number: set.set_number,
         weight_kg: set.weight_kg,
         reps: set.reps,
-        rpe: (set.rpe >= 1 && set.rpe <= 10) ? set.rpe : null,
+        rpe: set.rpe,
         is_warmup: set.is_warmup,
       };
 
@@ -208,7 +197,7 @@ export function useWorkout() {
       .maybeSingle();
 
     if (!existingPR || newE1RM > Number(existingPR.estimated_1rm || 0)) {
-      await supabase.from('personal_records').upsert({
+      await supabase.from('personal_records').insert({
         user_id: userId,
         exercise_key: exerciseKey,
         weight_kg: weight,
@@ -216,10 +205,21 @@ export function useWorkout() {
         estimated_1rm: newE1RM,
         session_id: sid,
         achieved_at: todayStr(),
-      }, { onConflict: 'user_id,exercise_key' });
+      });
       toast.success(`🏆 New PR! Est. 1RM: ${newE1RM} kg`, { duration: 4000 });
     }
   };
+
+  const autoSaveDuration = useCallback(async (durationMin: number) => {
+    // Update duration on existing session without marking completed
+    // This lets Dashboard show elapsed time even if user never taps Finish
+    const sid = sessionId;
+    if (!sid) return;
+    await supabase
+      .from('workout_sessions')
+      .update({ duration_min: durationMin })
+      .eq('id', sid);
+  }, [sessionId]);
 
   const finishSession = useCallback(async (durationMin?: number) => {
     if (!sessionId) return;
@@ -241,6 +241,7 @@ export function useWorkout() {
     sessionId,
     exerciseLogs,
     saveSet,
+    autoSaveDuration,
     finishSession,
     getSetsForExercise,
   };
