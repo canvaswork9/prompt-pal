@@ -19,7 +19,7 @@ const LogPage = () => {
   const { lang } = useLanguage();
   const navigate = useNavigate();
   const logEnabled = useFeatureFlag('progressive_overload');
-  const { loading, saving, saveSet, finishSession, getSetsForExercise } = useWorkout();
+  const { loading, saving, saveSet, autoSaveDuration, finishSession, getSetsForExercise } = useWorkout();
   const [exercises, setExercises] = useState<{ key: string; name: string; type: string }[]>([]);
   const [currentEx, setCurrentEx] = useState(0);
   const [localSets, setLocalSets] = useState<WorkingSet[]>([]);
@@ -126,6 +126,16 @@ const LogPage = () => {
       setRestTimer({ active: true, seconds: restSeconds });
     }
   };
+
+  // Auto-save duration every 60s so Dashboard shows time even if user doesn't tap Finish
+  useEffect(() => {
+    if (exercises.length === 0) return;
+    const interval = setInterval(() => {
+      const elapsed = Math.round((Date.now() - sessionStart) / 60000);
+      if (elapsed > 0) autoSaveDuration(elapsed);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [exercises, sessionStart]);
 
   const handleFinish = async () => {
     const durationMin = Math.round((Date.now() - sessionStart) / 60000);
