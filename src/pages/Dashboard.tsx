@@ -27,7 +27,7 @@ const DashboardPage = () => {
   const [weightChart, setWeightChart] = useState<{ date: string; weight_kg: number }[]>([]);
   const [macroTotals, setMacroTotals] = useState({ protein: 0, carbs: 0, fat: 0 });
   const [tdeeTarget, setTdeeTarget] = useState<{ protein: number; carbs: number; fat: number; calories: number } | null>(null);
-  const [sessions, setSessions] = useState<{ date: string; split: string; duration: number; score: number }[]>([]);
+  const [sessions, setSessions] = useState<{ date: string; split: string; duration: number; score: number; completed: boolean }[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -45,11 +45,13 @@ const DashboardPage = () => {
           supabase.from('user_profiles').select('weight_kg, height_cm, age, sex, activity_level, fitness_goal').eq('id', user.id).maybeSingle(),
           supabase.from('meal_logs').select('date, calories, protein_g, carbs_g, fat_g, eaten').eq('user_id', user.id).gte('date', startStr).eq('eaten', true),
           supabase.from('daily_checkins').select('date, readiness_score, status').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
-          supabase.from('workout_sessions').select('date, split, duration_min, readiness_score, completed').eq('user_id', user.id).gte('date', startStr).eq('completed', true),
+          // ลบ .eq('completed', true) — ดึง session ทุก session ไม่ว่าจะ finish หรือยัง
+          supabase.from('workout_sessions').select('date, split, duration_min, readiness_score, completed').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
           supabase.from('weight_logs').select('date, weight_kg').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
         ]);
 
-        // TDEE
+        // TDEE + BMR-based calorie burn calculation
+        let bmrPerDay = 0;
         if (profile) {
           const targets = calculateCalorieTargets(
             Number(profile.weight_kg) || 70,
@@ -59,6 +61,7 @@ const DashboardPage = () => {
             ((profile as any).activity_level as any) || 'moderate',
             (profile.fitness_goal as any) || 'general'
           );
+          bmrPerDay = targets.bmr; // calories burned just being alive per day
           setTdeeTarget({ protein: targets.proteinTarget, carbs: targets.carbTarget, fat: targets.fatTarget, calories: targets.calorieTarget });
         }
 
@@ -71,20 +74,47 @@ const DashboardPage = () => {
           fat: meals?.reduce((s, m) => s + Number(m.fat_g || 0), 0) || 0,
         });
 
-        // Calorie chart by day
+        // Calorie chart by day — burned = BMR/day + workout calories
         const calByDay: Record<string, { eaten: number; burned: number }> = {};
+
+        // Fill every day in range with BMR baseline
+        for (let d = 0; d < days; d++) {
+          const date = new Date(startDate);
+          date.setDate(date.getDate() + d);
+          const dateStr = date.toISOString().slice(0, 10);
+          calByDay[dateStr] = { eaten: 0, burned: bmrPerDay };
+        }
+
         meals?.forEach(m => {
-          if (!calByDay[m.date]) calByDay[m.date] = { eaten: 0, burned: 0 };
+          if (!calByDay[m.date]) calByDay[m.date] = { eaten: 0, burned: bmrPerDay };
           calByDay[m.date].eaten += m.calories || 0;
         });
-        workouts?.forEach(w => {
-          if (!calByDay[w.date]) calByDay[w.date] = { eaten: 0, burned: 0 };
-          calByDay[w.date].burned += (w.duration_min || 0) * 7;
-        });
-        setCalorieChart(Object.entries(calByDay).sort().map(([date, v]) => ({ date: date.slice(5), ...v })));
 
-        // Workouts
-        const totalBurned = workouts?.reduce((s, w) => s + (w.duration_min || 0) * 7, 0) || 0;
+        // Workout extra burn: MET-based estimate per exercise type
+        // Strength training MET ≈ 5.0, duration in hours × MET × weight
+        const weightKg = Number(profile?.weight_kg) || 70;
+        workouts?.forEach(w => {
+          if (!calByDay[w.date]) calByDay[w.date] = { eaten: 0, burned: bmrPerDay };
+          const durationHrs = (w.duration_min || 45) / 60;
+          // Strength: MET 5.0, Cardio: MET 7.0 — use split to determine
+          const met = (w.split || '').toLowerCase().includes('cardio') ? 7.0 : 5.0;
+          const workoutCals = Math.round(met * weightKg * durationHrs);
+          calByDay[w.date].burned += workoutCals;
+        });
+
+        setCalorieChart(
+          Object.entries(calByDay)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, v]) => ({ date: date.slice(5), eaten: v.eaten, burned: Math.round(v.burned) }))
+        );
+
+        // Total calories burned = BMR * days + workout extras
+        const workoutExtraCals = workouts?.reduce((s, w) => {
+          const durationHrs = (w.duration_min || 45) / 60;
+          const met = (w.split || '').toLowerCase().includes('cardio') ? 7.0 : 5.0;
+          return s + Math.round(met * weightKg * durationHrs);
+        }, 0) || 0;
+        const totalBurned = Math.round(bmrPerDay * days) + workoutExtraCals;
         setCaloriesBurned(totalBurned);
         setWorkoutCount(workouts?.length || 0);
         setSessions(workouts?.map(w => ({
@@ -92,6 +122,7 @@ const DashboardPage = () => {
           split: w.split || '-',
           duration: w.duration_min || 0,
           score: w.readiness_score || 0,
+          completed: w.completed || false,
         })) || []);
 
         // Readiness
@@ -125,12 +156,16 @@ const DashboardPage = () => {
   const periodDays = period === 'today' ? 1 : period === '7days' ? 7 : 30;
 
   const statCards = [
-    { label: 'Avg Calories In', value: `${avgCalories}`, sub: 'kcal/day' },
-    { label: 'Calories Burned', value: `${caloriesBurned}`, sub: 'total kcal' },
-    { label: 'Net Calories', value: `${netCalories}`, sub: 'avg/day' },
-    { label: 'Avg Readiness', value: `${avgReadiness}`, sub: `${greenDaysCount} green days` },
-    { label: 'Weight Change', value: `${weightChange > 0 ? '+' : ''}${weightChange.toFixed(1)} kg`, sub: '' },
-    { label: 'Workouts', value: `${workoutCount}`, sub: 'completed' },
+    { label: 'Avg Calories In',   value: avgCalories > 0 ? `${avgCalories}` : '—',                    sub: 'kcal/day' },
+    { label: 'Total Burned',      value: caloriesBurned > 0 ? `${caloriesBurned.toLocaleString()}` : '—', sub: `BMR + ${workoutCount} workouts` },
+    { label: 'Net Calories',      value: avgCalories > 0 || caloriesBurned > 0
+        ? `${netCalories > 0 ? '+' : ''}${netCalories}`
+        : '—',                                                                                          sub: 'avg/day (in − burned)' },
+    { label: 'Avg Readiness',     value: avgReadiness > 0 ? `${avgReadiness}` : '—',                  sub: `${greenDaysCount} green days` },
+    { label: 'Weight Change',     value: weightChart.length >= 2
+        ? `${weightChange > 0 ? '+' : ''}${weightChange.toFixed(1)} kg`
+        : '—',                                                                                          sub: period === 'today' ? 'today' : period === '7days' ? 'last 7 days' : 'last 30 days' },
+    { label: 'Workouts',          value: `${workoutCount}`,                                            sub: 'sessions logged' },
   ];
 
   const macroPercent = (consumed: number, target: number) => {
@@ -227,18 +262,33 @@ const DashboardPage = () => {
         <div className="bg-card rounded-xl p-5 card-shadow">
           <h3 className="font-semibold mb-4">Workout Sessions</h3>
           <div className="space-y-0 divide-y divide-border/50">
-            {sessions.map((s, i) => (
-              <div key={i} className="flex items-center justify-between py-3">
-                <div>
-                  <div className="text-sm font-medium capitalize">{s.split.replace(/_/g, ' ')}</div>
-                  <div className="text-xs text-muted-foreground">{s.date}</div>
+            {sessions.map((s, i) => {
+              const weightKg = Number(tdeeTarget ? 70 : 70); // fallback — profile weight used in calculation above
+              const durationHrs = (s.duration || 45) / 60;
+              const met = s.split.toLowerCase().includes('cardio') ? 7.0 : 5.0;
+              const sessionCals = s.duration > 0 ? Math.round(met * 70 * durationHrs) : null;
+              return (
+                <div key={i} className="flex items-center justify-between py-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium capitalize">
+                        {s.split.replace(/_/g, ' ')}
+                      </span>
+                      {s.completed ? (
+                        <span className="text-[10px] bg-status-green-dim text-status-green px-1.5 py-0.5 rounded-full">✓ Done</span>
+                      ) : (
+                        <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded-full">In progress</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{s.date}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-mono">{s.duration > 0 ? `${s.duration} min` : '—'}</div>
+                    {sessionCals && <div className="text-xs text-muted-foreground">~{sessionCals} kcal</div>}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-mono">{s.duration} min</div>
-                  {s.score > 0 && <div className="text-xs text-muted-foreground">Score: {s.score}</div>}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
