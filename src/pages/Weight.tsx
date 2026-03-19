@@ -7,7 +7,7 @@ import { Slider } from '@/components/ui/slider';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useLanguage } from '@/lib/i18n';
-import { calculateCalorieTargets, weeksToGoal, isOnTrack } from '@/lib/tdee';
+import { calculateCalorieTargets, weeksToGoal, isOnTrack, calculateVolumeCalories } from '@/lib/tdee';
 import type { CalorieTargets } from '@/lib/tdee';
 import SkeletonLoader from '@/components/SkeletonLoader';
 import { useNavigate } from 'react-router-dom';
@@ -62,8 +62,16 @@ const WeightPage = () => {
           supabase.from('weight_goals').select('*').eq('user_id', user.id).eq('is_active', true).maybeSingle(),
           supabase.from('weight_logs').select('id').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
           supabase.from('meal_logs').select('calories').eq('user_id', user.id).eq('date', todayStr()).eq('eaten', true),
-          supabase.from('workout_sessions').select('duration_min, split').eq('user_id', user.id).eq('date', todayStr()),
+          supabase.from('workout_sessions').select('id, duration_min, split').eq('user_id', user.id).eq('date', todayStr()),
         ]);
+
+        // Fetch exercise_sets for today's sessions — volume-based calorie calculation
+        const todaySessionIds = todaySessions?.map((s: any) => s.id).filter(Boolean) || [];
+        const { data: todaySets } = todaySessionIds.length > 0
+          ? await supabase.from('exercise_sets')
+              .select('session_id, weight_kg, reps, is_warmup')
+              .in('session_id', todaySessionIds)
+          : { data: [] as any[] };
 
         if (profile) {
           const w = Number(profile.weight_kg) || 70;
@@ -81,17 +89,13 @@ const WeightPage = () => {
           setTdeeTargets(targets);
 
           // Today's real calories IN — from marked meals
-          const calsIn = todayMeals?.reduce((s, m) => s + (m.calories || 0), 0) || 0;
+          const calsIn = todayMeals?.reduce((s: number, m: any) => s + (m.calories || 0), 0) || 0;
           setTodayCaloriesIn(calsIn);
 
-          // Today's real calories BURNED — BMR/day + workout MET estimate
+          // Today's real calories BURNED — BMR + volume-based workout
           const bmrToday = targets.bmr;
-          const workoutExtra = todaySessions?.reduce((s, session) => {
-            const durationHrs = (session.duration_min || 0) / 60;
-            const met = (session.split || '').toLowerCase().includes('cardio') ? 7.0 : 5.0;
-            return s + Math.round(met * w * durationHrs);
-          }, 0) || 0;
-          setTodayCaloriesBurned(bmrToday + workoutExtra);
+          const workoutVolumeCals = calculateVolumeCalories(todaySets || []);
+          setTodayCaloriesBurned(bmrToday + workoutVolumeCals);
         }
 
         if (history?.length) {
