@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useLanguage } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -19,7 +19,6 @@ const CheckinPage = () => {
   const { data, setData, result, submitted, setSubmitted, loading, saving, save, existingId, displayName } = useCheckin();
   const gam = useGamification();
   const [xpToast, setXpToast] = useState<{ amount: number; reason: string } | null>(null);
-  const [expandedCard, setExpandedCard] = useState<number | null>(0); // first card open by default
 
   const handleSave = async () => {
     const isNew = !existingId;
@@ -83,131 +82,103 @@ const CheckinPage = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Column */}
-        <div className="space-y-2">
-          {/* Helper: show selected value as summary when collapsed */}
-          {[
-            {
-              i: 0, icon: '😴', label: t('sleep_label'),
-              summary: `${data.sleep_hours.toFixed(1)}h`,
-              summaryColor: data.sleep_hours < 6 ? 'text-status-red' : data.sleep_hours < 7.5 ? 'text-status-yellow' : 'text-status-green',
-              content: (
-                <div className="space-y-2 pt-2">
-                  <div className="flex justify-between text-sm">
-                    <span>4h</span>
-                    <span className="font-mono text-primary">{data.sleep_hours.toFixed(1)} {t('hrs')}</span>
-                    <span>12h</span>
-                  </div>
-                  <Slider value={[data.sleep_hours]} onValueChange={v => setData(d => ({ ...d, sleep_hours: v[0] }))} min={4} max={12} step={0.5} />
-                </div>
-              ),
-            },
-            {
-              i: 1, icon: '💤', label: t('sleep_quality_label'),
-              summary: data.sleep_quality,
-              summaryColor: data.sleep_quality === 'poor' ? 'text-status-red' : data.sleep_quality === 'ok' ? 'text-status-yellow' : 'text-status-green',
-              content: (
-                <div className="flex gap-2 pt-2">
-                  {(['poor', 'ok', 'good'] as SleepQuality[]).map(q => (
-                    <OptionButton key={q} active={data.sleep_quality === q} onClick={() => { setData(d => ({ ...d, sleep_quality: q })); setExpandedCard(2); }}>
-                      {q === 'poor' ? '😣' : q === 'ok' ? '😐' : '😊'} {t(q === 'good' ? 'great' : q)}
-                    </OptionButton>
-                  ))}
-                </div>
-              ),
-            },
-            {
-              i: 2, icon: '❤️', label: t('hr_label'),
-              summary: `${data.resting_hr} ${t('bpm')}`,
-              summaryColor: '',
-              content: (
-                <div className="space-y-2 pt-2">
-                  <div className="flex justify-between text-sm">
-                    <span>40</span>
-                    <span className="font-mono text-primary">{data.resting_hr} {t('bpm')}</span>
-                    <span>100</span>
-                  </div>
-                  <Slider value={[data.resting_hr]} onValueChange={v => setData(d => ({ ...d, resting_hr: v[0] }))} min={40} max={100} step={1} />
-                </div>
-              ),
-            },
-            {
-              i: 3, icon: '🏃', label: t('yesterday_label'),
-              summary: data.yesterday_training,
-              summaryColor: '',
-              content: (
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 pt-2">
-                  {(['none', 'cardio', 'upper', 'lower', 'full'] as YesterdayTraining[]).map(v => (
-                    <OptionButton key={v} active={data.yesterday_training === v} onClick={() => { setData(d => ({ ...d, yesterday_training: v })); setExpandedCard(4); }}>
-                      {t(v)}
-                    </OptionButton>
-                  ))}
-                </div>
-              ),
-            },
-            {
-              i: 4, icon: '💢', label: t('soreness_label'),
-              summary: data.muscle_soreness,
-              summaryColor: data.muscle_soreness === 'full' ? 'text-status-red' : data.muscle_soreness === 'none' ? 'text-status-green' : 'text-status-yellow',
-              content: (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
-                  {(['none', 'upper', 'lower', 'full'] as MuscleSoreness[]).map(v => (
-                    <OptionButton key={v} active={data.muscle_soreness === v} onClick={() => { setData(d => ({ ...d, muscle_soreness: v })); setExpandedCard(5); }}>
-                      {t(v)}
-                    </OptionButton>
-                  ))}
-                </div>
-              ),
-            },
-            {
-              i: 5, icon: '🍽️', label: t('nutrition_label'),
-              summary: data.nutrition_load,
-              summaryColor: '',
-              content: (
-                <div className="grid grid-cols-3 gap-2 pt-2">
-                  {(['deficit', 'maintenance', 'surplus'] as NutritionLoad[]).map(v => (
-                    <OptionButton key={v} active={data.nutrition_load === v} onClick={() => { setData(d => ({ ...d, nutrition_load: v })); setExpandedCard(null); }}>
-                      {v === 'deficit' ? '🔻' : v === 'maintenance' ? '⚖️' : '📈'} {t(v)}
-                    </OptionButton>
-                  ))}
-                </div>
-              ),
-            },
-          ].map(({ i, icon, label, summary, summaryColor, content }) => (
-            <motion.div key={i} {...cardDelay(i)} className="bg-card rounded-xl card-shadow overflow-hidden">
-              {/* Header — always visible, tap to expand */}
-              <button
-                className="w-full flex items-center justify-between p-4 text-left"
-                onClick={() => setExpandedCard(expandedCard === i ? null : i)}
-              >
-                <div className="flex items-center gap-2">
-                  <span>{icon}</span>
-                  <span className="font-semibold text-sm">{label}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {expandedCard !== i && (
-                    <span className={`text-xs font-mono font-medium ${summaryColor || 'text-muted-foreground'}`}>
-                      {summary}
-                    </span>
-                  )}
-                  <span className="text-muted-foreground text-xs">{expandedCard === i ? '▲' : '▼'}</span>
-                </div>
-              </button>
-              {/* Content — collapsible */}
-              <AnimatePresence>
-                {expandedCard === i && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="px-4 pb-4 overflow-hidden"
-                  >
-                    {content}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          ))}
+        <div className="space-y-4">
+          {/* Sleep Duration */}
+          <motion.div {...cardDelay(0)} className="bg-card rounded-xl p-4 card-shadow space-y-3">
+            <div>
+              <div className="flex items-center gap-2 font-semibold">😴 {t('sleep_label')}</div>
+              <p className="text-xs text-muted-foreground">{t('sleep_note')}</p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>4h</span>
+                <span className="font-mono text-primary">{data.sleep_hours.toFixed(1)} {t('hrs')}</span>
+                <span>12h</span>
+              </div>
+              <Slider value={[data.sleep_hours]} onValueChange={v => setData(d => ({ ...d, sleep_hours: v[0] }))} min={4} max={12} step={0.5} />
+              <div className="flex gap-1 justify-center">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded ${data.sleep_hours < 6 ? 'bg-status-red-dim text-status-red' : data.sleep_hours < 7.5 ? 'bg-status-yellow-dim text-status-yellow' : 'bg-status-green-dim text-status-green'}`}>
+                  {data.sleep_hours < 6 ? '🔴' : data.sleep_hours < 7.5 ? '🟡' : '🟢'}
+                </span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Sleep Quality */}
+          <motion.div {...cardDelay(1)} className="bg-card rounded-xl p-4 card-shadow space-y-3">
+            <div>
+              <div className="flex items-center gap-2 font-semibold">💤 {t('sleep_quality_label')}</div>
+              <p className="text-xs text-muted-foreground">{t('sleep_quality_note')}</p>
+            </div>
+            <div className="flex gap-2">
+              {(['poor', 'ok', 'good'] as SleepQuality[]).map(q => (
+                <OptionButton key={q} active={data.sleep_quality === q} onClick={() => setData(d => ({ ...d, sleep_quality: q }))}>
+                  {q === 'poor' ? '😣' : q === 'ok' ? '😐' : '😊'} {t(q === 'good' ? 'great' : q)}
+                </OptionButton>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Resting HR */}
+          <motion.div {...cardDelay(2)} className="bg-card rounded-xl p-4 card-shadow space-y-3">
+            <div>
+              <div className="flex items-center gap-2 font-semibold">❤️ {t('hr_label')}</div>
+              <p className="text-xs text-muted-foreground">{t('hr_note')}</p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>40</span>
+                <span className="font-mono text-primary">{data.resting_hr} {t('bpm')}</span>
+                <span>100</span>
+              </div>
+              <Slider value={[data.resting_hr]} onValueChange={v => setData(d => ({ ...d, resting_hr: v[0] }))} min={40} max={100} step={1} />
+            </div>
+          </motion.div>
+
+          {/* Yesterday Training */}
+          <motion.div {...cardDelay(3)} className="bg-card rounded-xl p-4 card-shadow space-y-3">
+            <div>
+              <div className="flex items-center gap-2 font-semibold">🏃 {t('yesterday_label')}</div>
+              <p className="text-xs text-muted-foreground">{t('yesterday_note')}</p>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {(['none', 'cardio', 'upper', 'lower', 'full'] as YesterdayTraining[]).map(v => (
+                <OptionButton key={v} active={data.yesterday_training === v} onClick={() => setData(d => ({ ...d, yesterday_training: v }))}>
+                  {t(v)}
+                </OptionButton>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Soreness */}
+          <motion.div {...cardDelay(4)} className="bg-card rounded-xl p-4 card-shadow space-y-3">
+            <div>
+              <div className="flex items-center gap-2 font-semibold">💢 {t('soreness_label')}</div>
+              <p className="text-xs text-muted-foreground">{t('soreness_note')}</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(['none', 'upper', 'lower', 'full'] as MuscleSoreness[]).map(v => (
+                <OptionButton key={v} active={data.muscle_soreness === v} onClick={() => setData(d => ({ ...d, muscle_soreness: v }))}>
+                  {t(v)}
+                </OptionButton>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Nutrition */}
+          <motion.div {...cardDelay(5)} className="bg-card rounded-xl p-4 card-shadow space-y-3">
+            <div>
+              <div className="flex items-center gap-2 font-semibold">🍽️ {t('nutrition_label')}</div>
+              <p className="text-xs text-muted-foreground">{t('nutrition_note')}</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {(['deficit', 'maintenance', 'surplus'] as NutritionLoad[]).map(v => (
+                <OptionButton key={v} active={data.nutrition_load === v} onClick={() => setData(d => ({ ...d, nutrition_load: v }))}>
+                  {v === 'deficit' ? '🔻' : v === 'maintenance' ? '⚖️' : '📈'} {t(v)}
+                </OptionButton>
+              ))}
+            </div>
+          </motion.div>
         </div>
 
         {/* Preview Column (desktop) */}
