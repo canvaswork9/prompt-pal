@@ -19,11 +19,13 @@ const LogPage = () => {
   const { lang } = useLanguage();
   const navigate = useNavigate();
   const logEnabled = useFeatureFlag('progressive_overload');
-  const { loading, saving, saveSet, autoSaveDuration, finishSession, getSetsForExercise } = useWorkout();
+  const { loading, saving, saveSet, autoSaveDuration, finishSession, getSetsForExercise, sessionStartFromDB } = useWorkout();
   const [exercises, setExercises] = useState<{ key: string; name: string; type: string }[]>([]);
   const [currentEx, setCurrentEx] = useState(0);
   const [localSets, setLocalSets] = useState<WorkingSet[]>([]);
+  // Use DB created_at if available (returning user), otherwise fallback to mount time
   const [sessionStart] = useState(() => Date.now());
+  const effectiveStart = sessionStartFromDB ?? sessionStart;
   const [restTimer, setRestTimer] = useState<{ active: boolean; seconds: number }>({ active: false, seconds: 0 });
   const [lastWeights, setLastWeights] = useState<Record<string, number>>({});
 
@@ -127,18 +129,18 @@ const LogPage = () => {
     }
   };
 
-  // Auto-save duration every 60s so Dashboard shows time even if user doesn't tap Finish
+  // Auto-save duration every 60s — uses real DB start time so elapsed is accurate
   useEffect(() => {
     if (exercises.length === 0) return;
     const interval = setInterval(() => {
-      const elapsed = Math.round((Date.now() - sessionStart) / 60000);
+      const elapsed = Math.round((Date.now() - effectiveStart) / 60000);
       if (elapsed > 0) autoSaveDuration(elapsed);
     }, 60000);
     return () => clearInterval(interval);
-  }, [exercises, sessionStart]);
+  }, [exercises, effectiveStart, autoSaveDuration]);
 
   const handleFinish = async () => {
-    const durationMin = Math.round((Date.now() - sessionStart) / 60000);
+    const durationMin = Math.round((Date.now() - effectiveStart) / 60000);
     await finishSession(durationMin);
     navigate('/progress');
   };
