@@ -46,14 +46,15 @@ const XPBar = ({ totalXP, level, streakDays, tierEmoji, tierName, compact }: XPB
       </div>
 
       {/* XP Progress Bar */}
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
           <span>{progress.current} / {progress.needed} XP</span>
           <span>Level {level + 1}</span>
         </div>
-        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+        <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
           <motion.div
-            className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
+            className="h-full rounded-full"
+            style={{ background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)))' }}
             initial={{ width: 0 }}
             animate={{ width: `${progress.pct}%` }}
             transition={{ duration: 0.8, ease: 'easeOut' }}
