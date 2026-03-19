@@ -82,11 +82,14 @@ const BottomNav = () => {
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 text-xs transition-colors
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 text-xs transition-colors relative
                   ${active ? 'text-primary' : 'text-muted-foreground'}`}
               >
-                <span className="text-lg">{item.icon}</span>
-                <span>{t(item.labelKey)}</span>
+                {active && (
+                  <span className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                )}
+                <span className="text-lg leading-none mt-1">{item.icon}</span>
+                <span className={active ? 'font-medium' : ''}>{t(item.labelKey)}</span>
               </NavLink>
             );
           })}
