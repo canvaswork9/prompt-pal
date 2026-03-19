@@ -99,64 +99,14 @@ const ResultCard = ({ result, data, onBack }: ResultCardProps) => {
         </div>
       </details>
 
-      {/* Next Steps */}
-      <div className="bg-secondary rounded-xl p-4 space-y-3">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">What to do next</p>
-        {result.status !== 'Red' ? (
-          <div className="space-y-2">
-            {[
-              { step: 1, label: 'See today\'s workout plan', sub: result.training_split, path: '/workout', primary: true },
-              { step: 2, label: 'Log your sets while training', sub: 'Track weight & reps', path: '/log', primary: false },
-              { step: 3, label: 'Log your meals', sub: 'Track calories & macros', path: '/meal', primary: false },
-            ].map(s => (
-              <button
-                key={s.step}
-                onClick={() => navigate(s.path)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
-                  s.primary
-                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                    : 'bg-card hover:bg-card/80 border border-border'
-                }`}
-              >
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                  s.primary ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
-                }`}>{s.step}</span>
-                <div className="flex-1 min-w-0">
-                  <div className={`text-sm font-medium ${s.primary ? 'text-white' : 'text-foreground'}`}>{s.label}</div>
-                  <div className={`text-xs ${s.primary ? 'text-white/70' : 'text-muted-foreground'}`}>{s.sub}</div>
-                </div>
-                <span className={`text-sm ${s.primary ? 'text-white/70' : 'text-muted-foreground'}`}>→</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          // Red status — recovery day
-          <div className="space-y-2">
-            {[
-              { step: 1, label: 'See recovery exercises', sub: 'Mobility & stretching only', path: '/workout', primary: true },
-              { step: 2, label: 'Log your meals', sub: 'Nutrition helps recovery', path: '/meal', primary: false },
-            ].map(s => (
-              <button
-                key={s.step}
-                onClick={() => navigate(s.path)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
-                  s.primary
-                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                    : 'bg-card hover:bg-card/80 border border-border'
-                }`}
-              >
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                  s.primary ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
-                }`}>{s.step}</span>
-                <div className="flex-1 min-w-0">
-                  <div className={`text-sm font-medium ${s.primary ? 'text-white' : 'text-foreground'}`}>{s.label}</div>
-                  <div className={`text-xs ${s.primary ? 'text-white/70' : 'text-muted-foreground'}`}>{s.sub}</div>
-                </div>
-                <span className={`text-sm ${s.primary ? 'text-white/70' : 'text-muted-foreground'}`}>→</span>
-              </button>
-            ))}
-          </div>
-        )}
+      {/* Action Buttons */}
+      <div className="flex gap-3">
+        <Button variant="accent" className="flex-1" onClick={() => navigate('/workout')}>
+          {t('see_workout')}
+        </Button>
+        <Button variant="outline" className="flex-1" onClick={() => navigate('/meal')}>
+          {t('open_meal')}
+        </Button>
       </div>
     </motion.div>
   );
