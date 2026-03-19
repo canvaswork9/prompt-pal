@@ -26,26 +26,24 @@ const XPBar = ({ totalXP, level, streakDays, tierEmoji, tierName, compact }: XPB
   return (
     <div className="bg-card rounded-xl p-4 card-shadow space-y-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <span className="text-2xl">{tierEmoji}</span>
           <div>
-            <div className="font-semibold text-sm">Level {level} · {tierName}</div>
-            <div className="text-xs text-muted-foreground font-mono">{totalXP} XP total</div>
+            <div className="font-semibold text-sm tracking-wide">Level {level} · {tierName}</div>
+            <div className="text-xs text-muted-foreground font-mono">{totalXP.toLocaleString()} XP</div>
           </div>
         </div>
         {streakDays > 0 && (
           <motion.div
             initial={{ scale: 0.8 }}
-            animate={{ scale: [1, 1.1, 1] }}
-            transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 2 }}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-status-yellow-dim text-status-yellow text-sm font-semibold"
+            animate={{ scale: [1, 1.08, 1] }}
+            transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 2.5 }}
+            className="reward-pill"
           >
             🔥 {streakDays}
           </motion.div>
         )}
       </div>
-
-      {/* XP Progress Bar */}
       <div className="space-y-1.5">
         <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
           <span>{progress.current} / {progress.needed} XP</span>
@@ -54,10 +52,10 @@ const XPBar = ({ totalXP, level, streakDays, tierEmoji, tierName, compact }: XPB
         <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
           <motion.div
             className="h-full rounded-full"
-            style={{ background: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)))' }}
+            style={{ background: 'linear-gradient(90deg, hsl(245 100% 70%), hsl(77 100% 58%))' }}
             initial={{ width: 0 }}
             animate={{ width: `${progress.pct}%` }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
+            transition={{ duration: 0.9, ease: 'easeOut' }}
           />
         </div>
       </div>
