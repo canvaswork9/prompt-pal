@@ -6,65 +6,65 @@
 
 @layer base {
   :root {
-    /* FitDecide Dark Theme */
-    --background: 222 47% 4%;
-    --foreground: 213 33% 93%;
+    /* FitDecide Dark Theme — v2 */
+    --background: 222 52% 4%;
+    --foreground: 213 40% 95%;
 
-    --card: 215 38% 7%;
-    --card-foreground: 213 33% 93%;
+    --card: 220 42% 8%;
+    --card-foreground: 213 40% 95%;
 
-    --popover: 215 30% 9%;
-    --popover-foreground: 213 33% 93%;
+    --popover: 220 38% 10%;
+    --popover-foreground: 213 40% 95%;
 
-    --primary: 211 100% 67%;
-    --primary-foreground: 222 47% 4%;
+    --primary: 211 92% 65%;
+    --primary-foreground: 222 52% 4%;
 
-    --secondary: 215 18% 13%;
-    --secondary-foreground: 213 33% 93%;
+    --secondary: 218 22% 12%;
+    --secondary-foreground: 213 40% 95%;
 
-    --muted: 215 18% 13%;
-    --muted-foreground: 213 10% 55%;
+    --muted: 218 22% 12%;
+    --muted-foreground: 215 14% 44%;
 
-    --accent: 42 85% 55%;
-    --accent-foreground: 42 20% 10%;
+    --accent: 38 88% 58%;
+    --accent-foreground: 38 60% 10%;
 
-    --destructive: 0 85% 49%;
+    --destructive: 0 82% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 215 18% 16%;
-    --input: 215 18% 16%;
-    --ring: 260 60% 75%;
+    --border: 218 22% 14%;
+    --input: 218 22% 14%;
+    --ring: 211 92% 65%;
 
-    --radius: 0.75rem;
+    --radius: 0.875rem;
 
     /* Status Colors */
-    --status-green: 153 70% 53%;
-    --status-green-dim: 153 70% 53% / 0.12;
-    --status-yellow: 40 87% 55%;
-    --status-yellow-dim: 40 87% 55% / 0.12;
-    --status-red: 1 93% 63%;
-    --status-red-dim: 1 93% 63% / 0.12;
+    --status-green: 158 64% 50%;
+    --status-green-dim: 158 64% 50% / 0.12;
+    --status-yellow: 38 88% 58%;
+    --status-yellow-dim: 38 88% 58% / 0.12;
+    --status-red: 2 88% 62%;
+    --status-red-dim: 2 88% 62% / 0.12;
 
-    /* Glow effects */
-    --glow-green: 0 0 24px hsl(153 70% 53% / 0.20);
-    --glow-yellow: 0 0 24px hsl(40 87% 55% / 0.20);
-    --glow-red: 0 0 24px hsl(1 93% 63% / 0.20);
-    --glow-accent: 0 0 24px hsl(211 100% 67% / 0.16);
+    /* Glow effects — slightly stronger */
+    --glow-green:  0 0 28px hsl(158 64% 50% / 0.22);
+    --glow-yellow: 0 0 28px hsl(38  88% 58% / 0.22);
+    --glow-red:    0 0 28px hsl(2   88% 62% / 0.22);
+    --glow-accent: 0 0 28px hsl(211 92% 65% / 0.18);
 
     /* Elevated surfaces */
-    --bg-elevated: 215 24% 11%;
-    --bg-overlay: 215 20% 14%;
-    --border-subtle: 215 38% 7%;
+    --bg-elevated: 220 28% 11%;
+    --bg-overlay:  220 24% 14%;
+    --border-subtle: 220 42% 8%;
 
     /* Sidebar */
-    --sidebar-background: 215 38% 7%;
-    --sidebar-foreground: 213 33% 93%;
-    --sidebar-primary: 211 100% 67%;
-    --sidebar-primary-foreground: 222 47% 4%;
-    --sidebar-accent: 215 18% 13%;
-    --sidebar-accent-foreground: 213 33% 93%;
-    --sidebar-border: 215 18% 16%;
-    --sidebar-ring: 211 100% 67%;
+    --sidebar-background: 220 42% 6%;
+    --sidebar-foreground: 213 40% 92%;
+    --sidebar-primary: 211 92% 65%;
+    --sidebar-primary-foreground: 222 52% 4%;
+    --sidebar-accent: 218 22% 12%;
+    --sidebar-accent-foreground: 213 40% 92%;
+    --sidebar-border: 218 22% 13%;
+    --sidebar-ring: 211 92% 65%;
   }
 }
 
@@ -99,7 +99,7 @@
   .text-display {
     font-family: 'Syne', sans-serif;
     font-weight: 700;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.035em;
     line-height: 1.1;
   }
 
@@ -107,30 +107,39 @@
     font-feature-settings: 'tnum';
   }
 
-  .glow-green {
-    box-shadow: var(--glow-green);
-  }
-
-  .glow-yellow {
-    box-shadow: var(--glow-yellow);
-  }
-
-  .glow-red {
-    box-shadow: var(--glow-red);
-  }
-
-  .glow-accent {
-    box-shadow: var(--glow-accent);
-  }
+  .glow-green  { box-shadow: var(--glow-green); }
+  .glow-yellow { box-shadow: var(--glow-yellow); }
+  .glow-red    { box-shadow: var(--glow-red); }
+  .glow-accent { box-shadow: var(--glow-accent); }
 
   .card-shadow {
-    box-shadow: 0 0 0 1px hsl(var(--border)), 0 2px 8px -2px rgba(0,0,0,0.3);
+    box-shadow: 0 0 0 1px hsl(var(--border)), 0 4px 12px -2px rgba(0,0,0,0.4);
   }
 
   .card-shadow-hover {
-    box-shadow: 0 0 0 1px hsl(var(--border)), 0 4px 16px -4px rgba(0,0,0,0.4);
+    box-shadow: 0 0 0 1px hsl(var(--border)), 0 8px 24px -4px rgba(0,0,0,0.5);
   }
-}
+
+  /* Mono numbers — primary tint so they feel like data */
+  .font-mono {
+    color: hsl(var(--primary) / 0.92);
+  }
+
+  /* Status dims — subtle filled pills */
+  .bg-status-green-dim { background: hsl(var(--status-green-dim)); }
+  .bg-status-yellow-dim { background: hsl(var(--status-yellow-dim)); }
+  .bg-status-red-dim { background: hsl(var(--status-red-dim)); }
+
+  /* Tag pill — reusable */
+  .tag-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
 
 /* iOS safe area support */
 @supports (padding: env(safe-area-inset-bottom)) {
@@ -141,4 +150,5 @@
 
 .safe-pb {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
 }
