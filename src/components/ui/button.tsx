@@ -19,6 +19,8 @@ const buttonVariants = cva(
         hero: "bg-primary text-primary-foreground hover:bg-primary/90 text-base px-8 h-12 rounded-xl glow-accent font-semibold",
         "hero-outline": "border-2 border-muted-foreground/30 text-foreground hover:bg-secondary text-base px-8 h-12 rounded-xl font-medium",
         status: "border border-input bg-secondary text-secondary-foreground hover:bg-secondary/80 data-[active=true]:bg-primary data-[active=true]:text-primary-foreground",
+        lime: "bg-accent text-accent-foreground hover:bg-accent/90 font-bold glow-lime-btn",
+        reward: "bg-accent text-accent-foreground hover:bg-accent/90 font-bold glow-lime-btn text-base h-12 rounded-xl px-8",
       },
       size: {
         default: "h-10 px-4 py-2",
