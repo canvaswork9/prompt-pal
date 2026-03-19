@@ -4,7 +4,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContai
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/lib/i18n';
-import { calculateCalorieTargets } from '@/lib/tdee';
+import { calculateCalorieTargets, calculateVolumeCalories } from '@/lib/tdee';
 import SkeletonLoader from '@/components/SkeletonLoader';
 
 type Period = 'today' | '7days' | '30days';
@@ -27,7 +27,7 @@ const DashboardPage = () => {
   const [weightChart, setWeightChart] = useState<{ date: string; weight_kg: number }[]>([]);
   const [macroTotals, setMacroTotals] = useState({ protein: 0, carbs: 0, fat: 0 });
   const [tdeeTarget, setTdeeTarget] = useState<{ protein: number; carbs: number; fat: number; calories: number } | null>(null);
-  const [sessions, setSessions] = useState<{ date: string; split: string; duration: number; score: number; completed: boolean }[]>([]);
+  const [sessions, setSessions] = useState<{ date: string; split: string; duration: number; score: number; completed: boolean; volumeCals: number }[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -45,10 +45,25 @@ const DashboardPage = () => {
           supabase.from('user_profiles').select('weight_kg, height_cm, age, sex, activity_level, fitness_goal').eq('id', user.id).maybeSingle(),
           supabase.from('meal_logs').select('date, calories, protein_g, carbs_g, fat_g, eaten').eq('user_id', user.id).gte('date', startStr).eq('eaten', true),
           supabase.from('daily_checkins').select('date, readiness_score, status').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
-          // ลบ .eq('completed', true) — ดึง session ทุก session ไม่ว่าจะ finish หรือยัง
-          supabase.from('workout_sessions').select('date, split, duration_min, readiness_score, completed').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
+          supabase.from('workout_sessions').select('id, date, split, duration_min, readiness_score, completed').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
           supabase.from('weight_logs').select('date, weight_kg').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
         ]);
+
+        // Fetch exercise_sets separately using session IDs from workouts
+        const sessionIds = workouts?.map(w => w.id).filter(Boolean) || [];
+        const { data: allSets } = sessionIds.length > 0
+          ? await supabase.from('exercise_sets')
+              .select('session_id, weight_kg, reps, is_warmup')
+              .in('session_id', sessionIds)
+          : { data: [] };
+
+        // Group sets by session_id for fast lookup
+        const setsBySession = new Map<string, { weight_kg: number | null; reps: number | null; is_warmup: boolean | null }[]>();
+        allSets?.forEach(s => {
+          const key = s.session_id;
+          if (!setsBySession.has(key)) setsBySession.set(key, []);
+          setsBySession.get(key)!.push({ weight_kg: s.weight_kg, reps: s.reps, is_warmup: s.is_warmup });
+        });
 
         // TDEE + BMR-based calorie burn calculation
         let bmrPerDay = 0;
@@ -74,7 +89,7 @@ const DashboardPage = () => {
           fat: meals?.reduce((s, m) => s + Number(m.fat_g || 0), 0) || 0,
         });
 
-        // Calorie chart by day — burned = BMR/day + workout calories
+        // Calorie chart by day — burned = BMR/day + volume-based workout calories
         const calByDay: Record<string, { eaten: number; burned: number }> = {};
 
         // Fill every day in range with BMR baseline
@@ -90,16 +105,14 @@ const DashboardPage = () => {
           calByDay[m.date].eaten += m.calories || 0;
         });
 
-        // Workout extra burn: MET-based estimate per exercise type
-        // Strength training MET ≈ 5.0, duration in hours × MET × weight
-        const weightKg = Number(profile?.weight_kg) || 70;
+        // Volume-based workout calories per session
         workouts?.forEach(w => {
           if (!calByDay[w.date]) calByDay[w.date] = { eaten: 0, burned: bmrPerDay };
-          const durationHrs = (w.duration_min || 45) / 60;
-          // Strength: MET 5.0, Cardio: MET 7.0 — use split to determine
-          const met = (w.split || '').toLowerCase().includes('cardio') ? 7.0 : 5.0;
-          const workoutCals = Math.round(met * weightKg * durationHrs);
-          calByDay[w.date].burned += workoutCals;
+          const sets = setsBySession.get(w.id) || [];
+          const volumeCals = sets.length > 0
+            ? calculateVolumeCalories(sets)
+            : 0; // no sets saved yet
+          calByDay[w.date].burned += volumeCals;
         });
 
         setCalorieChart(
@@ -108,13 +121,12 @@ const DashboardPage = () => {
             .map(([date, v]) => ({ date: date.slice(5), eaten: v.eaten, burned: Math.round(v.burned) }))
         );
 
-        // Total calories burned = BMR * days + workout extras
-        const workoutExtraCals = workouts?.reduce((s, w) => {
-          const durationHrs = (w.duration_min || 45) / 60;
-          const met = (w.split || '').toLowerCase().includes('cardio') ? 7.0 : 5.0;
-          return s + Math.round(met * weightKg * durationHrs);
+        // Total calories burned = BMR * days + volume from all sessions
+        const workoutVolumeCals = workouts?.reduce((s, w) => {
+          const sets = setsBySession.get(w.id) || [];
+          return s + calculateVolumeCalories(sets);
         }, 0) || 0;
-        const totalBurned = Math.round(bmrPerDay * days) + workoutExtraCals;
+        const totalBurned = Math.round(bmrPerDay * days) + workoutVolumeCals;
         setCaloriesBurned(totalBurned);
         setWorkoutCount(workouts?.length || 0);
         setSessions(workouts?.map(w => ({
@@ -123,6 +135,7 @@ const DashboardPage = () => {
           duration: w.duration_min || 0,
           score: w.readiness_score || 0,
           completed: w.completed || false,
+          volumeCals: calculateVolumeCalories(setsBySession.get(w.id) || []),
         })) || []);
 
         // Readiness
@@ -262,12 +275,7 @@ const DashboardPage = () => {
         <div className="bg-card rounded-xl p-5 card-shadow">
           <h3 className="font-semibold mb-4">Workout Sessions</h3>
           <div className="space-y-0 divide-y divide-border/50">
-            {sessions.map((s, i) => {
-              const weightKg = Number(tdeeTarget ? 70 : 70); // fallback — profile weight used in calculation above
-              const durationHrs = (s.duration || 45) / 60;
-              const met = s.split.toLowerCase().includes('cardio') ? 7.0 : 5.0;
-              const sessionCals = s.duration > 0 ? Math.round(met * 70 * durationHrs) : null;
-              return (
+            {sessions.map((s, i) => (
                 <div key={i} className="flex items-center justify-between py-3">
                   <div>
                     <div className="flex items-center gap-2">
@@ -284,11 +292,13 @@ const DashboardPage = () => {
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-mono">{s.duration > 0 ? `${s.duration} min` : '—'}</div>
-                    {sessionCals && <div className="text-xs text-muted-foreground">~{sessionCals} kcal</div>}
+                    {s.volumeCals > 0
+                      ? <div className="text-xs text-muted-foreground">~{s.volumeCals} kcal (volume)</div>
+                      : <div className="text-xs text-muted-foreground">log sets to calculate</div>
+                    }
                   </div>
                 </div>
-              );
-            })}
+              ))}
           </div>
         </div>
       )}
