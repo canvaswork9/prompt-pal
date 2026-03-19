@@ -4,7 +4,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContai
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/lib/i18n';
-import { calculateCalorieTargets } from '@/lib/tdee';
+import { calculateCalorieTargets, calculateVolumeCalories } from '@/lib/tdee';
 import SkeletonLoader from '@/components/SkeletonLoader';
 
 type Period = 'today' | '7days' | '30days';
@@ -27,7 +27,7 @@ const DashboardPage = () => {
   const [weightChart, setWeightChart] = useState<{ date: string; weight_kg: number }[]>([]);
   const [macroTotals, setMacroTotals] = useState({ protein: 0, carbs: 0, fat: 0 });
   const [tdeeTarget, setTdeeTarget] = useState<{ protein: number; carbs: number; fat: number; calories: number } | null>(null);
-  const [sessions, setSessions] = useState<{ date: string; split: string; duration: number; score: number }[]>([]);
+  const [sessions, setSessions] = useState<{ date: string; split: string; duration: number; score: number; completed: boolean; volumeCals: number }[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -45,11 +45,28 @@ const DashboardPage = () => {
           supabase.from('user_profiles').select('weight_kg, height_cm, age, sex, activity_level, fitness_goal').eq('id', user.id).maybeSingle(),
           supabase.from('meal_logs').select('date, calories, protein_g, carbs_g, fat_g, eaten').eq('user_id', user.id).gte('date', startStr).eq('eaten', true),
           supabase.from('daily_checkins').select('date, readiness_score, status').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
-          supabase.from('workout_sessions').select('date, split, duration_min, readiness_score, completed').eq('user_id', user.id).gte('date', startStr).eq('completed', true),
+          supabase.from('workout_sessions').select('id, date, split, duration_min, readiness_score, completed').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
           supabase.from('weight_logs').select('date, weight_kg').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
         ]);
 
-        // TDEE
+        // Fetch exercise_sets separately using session IDs from workouts
+        const sessionIds = workouts?.map(w => w.id).filter(Boolean) || [];
+        const { data: allSets } = sessionIds.length > 0
+          ? await supabase.from('exercise_sets')
+              .select('session_id, weight_kg, reps, is_warmup')
+              .in('session_id', sessionIds)
+          : { data: [] };
+
+        // Group sets by session_id for fast lookup
+        const setsBySession = new Map<string, { weight_kg: number | null; reps: number | null; is_warmup: boolean | null }[]>();
+        allSets?.forEach(s => {
+          const key = s.session_id;
+          if (!setsBySession.has(key)) setsBySession.set(key, []);
+          setsBySession.get(key)!.push({ weight_kg: s.weight_kg, reps: s.reps, is_warmup: s.is_warmup });
+        });
+
+        // TDEE + BMR-based calorie burn calculation
+        let bmrPerDay = 0;
         if (profile) {
           const targets = calculateCalorieTargets(
             Number(profile.weight_kg) || 70,
@@ -59,6 +76,7 @@ const DashboardPage = () => {
             ((profile as any).activity_level as any) || 'moderate',
             (profile.fitness_goal as any) || 'general'
           );
+          bmrPerDay = targets.bmr; // calories burned just being alive per day
           setTdeeTarget({ protein: targets.proteinTarget, carbs: targets.carbTarget, fat: targets.fatTarget, calories: targets.calorieTarget });
         }
 
@@ -71,20 +89,44 @@ const DashboardPage = () => {
           fat: meals?.reduce((s, m) => s + Number(m.fat_g || 0), 0) || 0,
         });
 
-        // Calorie chart by day
+        // Calorie chart by day — burned = BMR/day + volume-based workout calories
         const calByDay: Record<string, { eaten: number; burned: number }> = {};
+
+        // Fill every day in range with BMR baseline
+        for (let d = 0; d < days; d++) {
+          const date = new Date(startDate);
+          date.setDate(date.getDate() + d);
+          const dateStr = date.toISOString().slice(0, 10);
+          calByDay[dateStr] = { eaten: 0, burned: bmrPerDay };
+        }
+
         meals?.forEach(m => {
-          if (!calByDay[m.date]) calByDay[m.date] = { eaten: 0, burned: 0 };
+          if (!calByDay[m.date]) calByDay[m.date] = { eaten: 0, burned: bmrPerDay };
           calByDay[m.date].eaten += m.calories || 0;
         });
-        workouts?.forEach(w => {
-          if (!calByDay[w.date]) calByDay[w.date] = { eaten: 0, burned: 0 };
-          calByDay[w.date].burned += (w.duration_min || 0) * 7;
-        });
-        setCalorieChart(Object.entries(calByDay).sort().map(([date, v]) => ({ date: date.slice(5), ...v })));
 
-        // Workouts
-        const totalBurned = workouts?.reduce((s, w) => s + (w.duration_min || 0) * 7, 0) || 0;
+        // Volume-based workout calories per session
+        workouts?.forEach(w => {
+          if (!calByDay[w.date]) calByDay[w.date] = { eaten: 0, burned: bmrPerDay };
+          const sets = setsBySession.get(w.id) || [];
+          const volumeCals = sets.length > 0
+            ? calculateVolumeCalories(sets)
+            : 0; // no sets saved yet
+          calByDay[w.date].burned += volumeCals;
+        });
+
+        setCalorieChart(
+          Object.entries(calByDay)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, v]) => ({ date: date.slice(5), eaten: v.eaten, burned: Math.round(v.burned) }))
+        );
+
+        // Total calories burned = BMR * days + volume from all sessions
+        const workoutVolumeCals = workouts?.reduce((s, w) => {
+          const sets = setsBySession.get(w.id) || [];
+          return s + calculateVolumeCalories(sets);
+        }, 0) || 0;
+        const totalBurned = Math.round(bmrPerDay * days) + workoutVolumeCals;
         setCaloriesBurned(totalBurned);
         setWorkoutCount(workouts?.length || 0);
         setSessions(workouts?.map(w => ({
@@ -92,6 +134,8 @@ const DashboardPage = () => {
           split: w.split || '-',
           duration: w.duration_min || 0,
           score: w.readiness_score || 0,
+          completed: w.completed || false,
+          volumeCals: calculateVolumeCalories(setsBySession.get(w.id) || []),
         })) || []);
 
         // Readiness
@@ -121,54 +165,20 @@ const DashboardPage = () => {
 
   if (loading) return <SkeletonLoader />;
 
-  // Empty state — no data yet
-  const hasAnyData = avgCalories > 0 || workoutCount > 0 || readinessChart.length > 0 || weightChart.length > 0;
-  if (!hasAnyData) {
-    return (
-      <div className="max-w-4xl mx-auto p-4 sm:p-6">
-        <h1 className="text-display text-2xl mb-8">{t('dashboard')}</h1>
-        <div className="bg-card rounded-2xl p-8 card-shadow text-center space-y-6">
-          <div className="text-5xl">📊</div>
-          <div>
-            <h2 className="font-semibold text-lg mb-2">Your dashboard will fill up as you use the app</h2>
-            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              Log 3 days of check-ins, meals, and workouts to unlock your full summary.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left max-w-lg mx-auto">
-            {[
-              { icon: '⚡', label: 'Daily Check-in', desc: 'Log sleep, HR & soreness', path: '/app' },
-              { icon: '🏋️', label: 'Log Workout', desc: 'Track sets & reps', path: '/log' },
-              { icon: '🍽️', label: 'Log Meals', desc: 'Mark what you ate', path: '/meal' },
-            ].map(item => (
-              <button
-                key={item.path}
-                onClick={() => window.location.href = item.path}
-                className="flex items-start gap-3 bg-secondary rounded-xl p-3 hover:bg-secondary/80 transition-colors text-left"
-              >
-                <span className="text-xl">{item.icon}</span>
-                <div>
-                  <div className="text-sm font-medium">{item.label}</div>
-                  <div className="text-xs text-muted-foreground">{item.desc}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const netCalories = avgCalories - Math.round(caloriesBurned / (period === 'today' ? 1 : period === '7days' ? 7 : 30));
   const periodDays = period === 'today' ? 1 : period === '7days' ? 7 : 30;
 
   const statCards = [
-    { label: 'Avg Calories In', value: `${avgCalories}`, sub: 'kcal/day' },
-    { label: 'Calories Burned', value: `${caloriesBurned}`, sub: 'total kcal' },
-    { label: 'Net Calories', value: `${netCalories}`, sub: 'avg/day' },
-    { label: 'Avg Readiness', value: `${avgReadiness}`, sub: `${greenDaysCount} green days` },
-    { label: 'Weight Change', value: `${weightChange > 0 ? '+' : ''}${weightChange.toFixed(1)} kg`, sub: '' },
-    { label: 'Workouts', value: `${workoutCount}`, sub: 'completed' },
+    { label: 'Avg Calories In',   value: avgCalories > 0 ? `${avgCalories}` : '—',                    sub: 'kcal/day' },
+    { label: 'Total Burned',      value: caloriesBurned > 0 ? `${caloriesBurned.toLocaleString()}` : '—', sub: `BMR + ${workoutCount} workouts` },
+    { label: 'Net Calories',      value: avgCalories > 0 || caloriesBurned > 0
+        ? `${netCalories > 0 ? '+' : ''}${netCalories}`
+        : '—',                                                                                          sub: 'avg/day (in − burned)' },
+    { label: 'Avg Readiness',     value: avgReadiness > 0 ? `${avgReadiness}` : '—',                  sub: `${greenDaysCount} green days` },
+    { label: 'Weight Change',     value: weightChart.length >= 2
+        ? `${weightChange > 0 ? '+' : ''}${weightChange.toFixed(1)} kg`
+        : '—',                                                                                          sub: period === 'today' ? 'today' : period === '7days' ? 'last 7 days' : 'last 30 days' },
+    { label: 'Workouts',          value: `${workoutCount}`,                                            sub: 'sessions logged' },
   ];
 
   const macroPercent = (consumed: number, target: number) => {
@@ -266,17 +276,29 @@ const DashboardPage = () => {
           <h3 className="font-semibold mb-4">Workout Sessions</h3>
           <div className="space-y-0 divide-y divide-border/50">
             {sessions.map((s, i) => (
-              <div key={i} className="flex items-center justify-between py-3">
-                <div>
-                  <div className="text-sm font-medium capitalize">{s.split.replace(/_/g, ' ')}</div>
-                  <div className="text-xs text-muted-foreground">{s.date}</div>
+                <div key={i} className="flex items-center justify-between py-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium capitalize">
+                        {s.split.replace(/_/g, ' ')}
+                      </span>
+                      {s.completed ? (
+                        <span className="text-[10px] bg-status-green-dim text-status-green px-1.5 py-0.5 rounded-full">✓ Done</span>
+                      ) : (
+                        <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded-full">In progress</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{s.date}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-mono">{s.duration > 0 ? `${s.duration} min` : '—'}</div>
+                    {s.volumeCals > 0
+                      ? <div className="text-xs text-muted-foreground">~{s.volumeCals} kcal (volume)</div>
+                      : <div className="text-xs text-muted-foreground">log sets to calculate</div>
+                    }
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-mono">{s.duration} min</div>
-                  {s.score > 0 && <div className="text-xs text-muted-foreground">Score: {s.score}</div>}
-                </div>
-              </div>
-            ))}
+              ))}
           </div>
         </div>
       )}
