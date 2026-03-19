@@ -302,17 +302,36 @@ const MealPage = () => {
         const meal = getMealForSlot(slot.key);
         if (!meal) return null;
         const isEaten = eatenSlots.has(slot.key);
+        const totalForSlot = getAllMealsForSlot(slot.key).length;
+        const currentIdxForSlot = (mealSelections.get(slot.key) ?? 0) % totalForSlot;
         return (
-          <motion.div key={slot.key} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }} className={`bg-card rounded-xl p-4 card-shadow transition-opacity ${isEaten ? 'opacity-60' : ''}`}>
-            <div className="flex items-center justify-between mb-3">
-              <div><span className="font-semibold">{slot.icon} {slot.label}</span><span className="text-xs text-muted-foreground ml-2">({slot.time})</span></div>
+          <motion.div key={slot.key} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
+            className={`bg-card rounded-xl p-4 card-shadow relative transition-all ${isEaten ? 'border border-status-green/25' : ''}`}>
+            {isEaten && (
+              <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-status-green/15 flex items-center justify-center">
+                <span className="text-status-green text-[10px] font-bold">✓</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between mb-2 pr-6">
+              <div><span className="font-semibold text-sm">{slot.icon} {slot.label}</span><span className="text-xs text-muted-foreground ml-2">({slot.time})</span></div>
               <span className="font-mono text-sm">{meal.kcal} kcal</span>
             </div>
-            <div className="text-sm mb-2">{lang === 'th' ? meal.name_th : (meal.name_en || meal.name_th)}</div>
-            <div className="flex gap-3 text-xs text-muted-foreground mb-3"><span>P:{meal.protein}g</span><span>C:{meal.carbs}g</span><span>F:{meal.fat}g</span></div>
+            <div className={`text-sm mb-3 ${isEaten ? 'text-muted-foreground' : ''}`}>{lang === 'th' ? meal.name_th : (meal.name_en || meal.name_th)}</div>
+            <div className="flex gap-2 mb-3">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">P:{meal.protein}g</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">C:{meal.carbs}g</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">F:{meal.fat}g</span>
+            </div>
             <div className="flex gap-2">
-              <Button variant={isEaten ? 'secondary' : 'accent'} size="sm" className="text-xs" onClick={() => toggleEaten(slot.key)}>{isEaten ? '↩ Undo' : '✓ Mark as Eaten'}</Button>
-              <Button variant="outline" size="sm" className="text-xs" onClick={() => swapMeal(slot.key)}>🔄 Swap</Button>
+              <Button variant={isEaten ? 'secondary' : 'accent'} size="sm" className="text-xs h-8" onClick={() => toggleEaten(slot.key)}>
+                {isEaten ? '↩ Undo' : '✓ Mark as Eaten'}
+              </Button>
+              {totalForSlot > 1 && (
+                <Button variant="outline" size="sm" className="text-xs h-8 gap-1.5" onClick={() => swapMeal(slot.key)}>
+                  <span>⟳</span>
+                  <span className="font-mono text-[11px]">{currentIdxForSlot + 1}/{totalForSlot}</span>
+                </Button>
+              )}
             </div>
           </motion.div>
         );
