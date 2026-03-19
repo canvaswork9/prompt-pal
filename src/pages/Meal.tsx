@@ -59,12 +59,10 @@ const MealPage = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { setLoading(false); return; }
 
-        // Fetch everything in parallel — including custom_meals
-        const [{ data: profile }, { data: todayCheckin }, { data: logs }, { data: rawCustomMeals }] = await Promise.all([
+        const [{ data: profile }, { data: todayCheckin }, { data: logs }] = await Promise.all([
           supabase.from('user_profiles').select('weight_kg, fitness_goal, height_cm, age, sex, activity_level').eq('id', user.id).maybeSingle(),
           supabase.from('daily_checkins').select('nutrition_load').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
           supabase.from('meal_logs').select('*').eq('user_id', user.id).eq('date', todayStr()),
-          supabase.from('custom_meals').select('*').eq('user_id', user.id),
         ]);
 
         if (profile?.weight_kg) setWeightKg(Number(profile.weight_kg));
@@ -98,20 +96,7 @@ const MealPage = () => {
 
         if (checkin?.nutrition_load) setNutritionLoad(checkin.nutrition_load);
 
-        // Build customMeals map from raw data (not React state — state update is async)
-        const freshCustomMeals: Record<string, Meal[]> = {};
-        if (rawCustomMeals && rawCustomMeals.length > 0) {
-          rawCustomMeals.forEach((m: any) => {
-            const slot = m.meal_slot || 'snack';
-            if (!freshCustomMeals[slot]) freshCustomMeals[slot] = [];
-            freshCustomMeals[slot].push({
-              name_th: m.name, name_en: m.name,
-              kcal: m.kcal, protein: Number(m.protein),
-              carbs: Number(m.carbs), fat: Number(m.fat),
-            });
-          });
-          setCustomMeals(freshCustomMeals);
-        }
+        await loadCustomMeals(user.id);
 
         if (logs && logs.length > 0) {
           const eaten = new Set<string>();
@@ -122,12 +107,14 @@ const MealPage = () => {
               if (log.eaten) eaten.add(log.meal_slot);
               ids.set(log.meal_slot, log.id);
               if (log.meal_name) {
-                // Use freshCustomMeals (raw data) — NOT customMeals state which hasn't updated yet
+                // Search both MEAL_DB and custom meals, match name_th OR name_en
                 const baseMeals = MEAL_DB[log.meal_slot as MealSlotKey] || [];
-                const customSlotMeals = freshCustomMeals[log.meal_slot] || [];
+                const customSlotMeals = customMeals[log.meal_slot] || [];
                 const allSlotMeals = [...baseMeals, ...customSlotMeals];
                 const idx = allSlotMeals.findIndex(
-                  m => m.name_th === log.meal_name || (m as any).name_en === log.meal_name
+                  m => m.name_th === log.meal_name
+                    || (m as any).name_en === log.meal_name
+                    || m.name_th === log.meal_name
                 );
                 if (idx >= 0) selections.set(log.meal_slot, idx);
               }
@@ -144,7 +131,7 @@ const MealPage = () => {
       }
     }
     load();
-  }, [reloadKey]);
+  }, [reloadKey, loadCustomMeals]);
 
   // Use TDEE targets if available, otherwise fall back to simple macros
   const macros = tdeeTargets
@@ -203,42 +190,12 @@ const MealPage = () => {
     const currentIdx = mealSelections.get(slot) ?? 0;
     const nextIdx = (currentIdx + 1) % meals.length;
     setMealSelections(prev => new Map(prev).set(slot, nextIdx));
-
-    const meal = meals[nextIdx];
-    const mealName = meal.name_th; // canonical key
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const existingId = dbLogIds.get(slot);
-      if (existingId) {
-        // Update existing log row
-        await supabase.from('meal_logs')
-          .update({ meal_name: mealName, calories: meal.kcal, protein_g: meal.protein, carbs_g: meal.carbs, fat_g: meal.fat })
-          .eq('id', existingId);
-      } else {
-        // No log row yet — create one with eaten=false to persist the selection
-        const { data: inserted, error } = await supabase.from('meal_logs')
-          .insert({
-            user_id: user.id,
-            date: todayStr(),
-            meal_slot: slot,
-            meal_name: mealName,
-            eaten: false,
-            calories: meal.kcal,
-            protein_g: meal.protein,
-            carbs_g: meal.carbs,
-            fat_g: meal.fat,
-          })
-          .select('id')
-          .single();
-        if (!error && inserted) {
-          setDbLogIds(prev => new Map(prev).set(slot, inserted.id));
-        }
-      }
-    } catch (err) {
-      console.error('Failed to save meal swap:', err);
+    const existingId = dbLogIds.get(slot);
+    if (existingId) {
+      const meal = meals[nextIdx];
+      // Always save name_th as canonical key
+      const mealName = meal.name_th;
+      await supabase.from('meal_logs').update({ meal_name: mealName, calories: meal.kcal, protein_g: meal.protein, carbs_g: meal.carbs, fat_g: meal.fat }).eq('id', existingId);
     }
   };
 
@@ -312,7 +269,12 @@ const MealPage = () => {
             <div className="flex gap-3 text-xs text-muted-foreground mb-3"><span>P:{meal.protein}g</span><span>C:{meal.carbs}g</span><span>F:{meal.fat}g</span></div>
             <div className="flex gap-2">
               <Button variant={isEaten ? 'secondary' : 'accent'} size="sm" className="text-xs" onClick={() => toggleEaten(slot.key)}>{isEaten ? '↩ Undo' : '✓ Mark as Eaten'}</Button>
-              <Button variant="outline" size="sm" className="text-xs" onClick={() => swapMeal(slot.key)}>🔄 Swap</Button>
+              <Button variant="outline" size="sm" className="text-xs" onClick={() => swapMeal(slot.key)}>
+                🔄 {mealSelections.get(slot.key) !== undefined
+                  ? `${(mealSelections.get(slot.key)! % getAllMealsForSlot(slot.key).length) + 1}/${getAllMealsForSlot(slot.key).length}`
+                  : `1/${getAllMealsForSlot(slot.key).length}`
+                }
+              </Button>
             </div>
           </motion.div>
         );
