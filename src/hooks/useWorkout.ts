@@ -27,6 +27,8 @@ export function useWorkout() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exerciseLogs, setExerciseLogs] = useState<Map<string, WorkingSet[]>>(new Map());
+  // Real start time from DB — so elapsed is accurate even after leaving and returning
+  const [sessionStartFromDB, setSessionStartFromDB] = useState<number | null>(null);
 
   // Load or create today's workout session
   useEffect(() => {
@@ -44,15 +46,31 @@ export function useWorkout() {
 
         if (checkin) setCheckinId(checkin.id);
 
+        // Fetch today's session — include created_at so we can calculate real elapsed time
         const { data: session } = await supabase
           .from('workout_sessions')
-          .select('id')
+          .select('id, created_at, duration_min, completed')
           .eq('user_id', user.id)
           .eq('date', todayStr())
           .maybeSingle();
 
+        // Auto-complete any stale incomplete sessions from previous days
+        // This prevents old sessions from polluting the Dashboard
+        await supabase
+          .from('workout_sessions')
+          .update({ completed: true })
+          .eq('user_id', user.id)
+          .eq('completed', false)
+          .lt('date', todayStr());
+
         if (session) {
           setSessionId(session.id);
+
+          // Restore sessionStart from DB created_at so elapsed time is accurate
+          // even if user left and came back
+          const createdAt = new Date(session.created_at).getTime();
+          setSessionStartFromDB(createdAt);
+
           const { data: sets } = await supabase
             .from('exercise_sets')
             .select('*')
@@ -239,6 +257,7 @@ export function useWorkout() {
     loading,
     saving,
     sessionId,
+    sessionStartFromDB,
     exerciseLogs,
     saveSet,
     autoSaveDuration,
