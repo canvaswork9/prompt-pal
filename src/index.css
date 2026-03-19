@@ -6,149 +6,152 @@
 
 @layer base {
   :root {
-    /* FitDecide Dark Theme — v2 */
-    --background: 222 52% 4%;
-    --foreground: 213 40% 95%;
+    /* ── APEX DARK — FitDecide v3 ──
+       Primary:  Electric Indigo  #6C63FF  hsl(245 100% 70%)
+       Reward:   Neon Lime        #BAFF29  hsl(77 100% 58%)
+       Data:     Pure white numerals
+    */
+    --background: 240 60% 3%;
+    --foreground: 240 20% 95%;
 
-    --card: 220 42% 8%;
-    --card-foreground: 213 40% 95%;
+    --card: 240 50% 7%;
+    --card-foreground: 240 20% 95%;
 
-    --popover: 220 38% 10%;
-    --popover-foreground: 213 40% 95%;
+    --popover: 240 40% 9%;
+    --popover-foreground: 240 20% 95%;
 
-    --primary: 211 92% 65%;
-    --primary-foreground: 222 52% 4%;
+    --primary: 245 100% 70%;
+    --primary-foreground: 240 60% 3%;
 
-    --secondary: 218 22% 12%;
-    --secondary-foreground: 213 40% 95%;
+    --secondary: 240 35% 11%;
+    --secondary-foreground: 240 20% 95%;
 
-    --muted: 218 22% 12%;
-    --muted-foreground: 215 14% 44%;
+    --muted: 240 35% 11%;
+    --muted-foreground: 240 15% 38%;
 
-    --accent: 38 88% 58%;
-    --accent-foreground: 38 60% 10%;
+    --accent: 77 100% 58%;
+    --accent-foreground: 240 60% 3%;
 
     --destructive: 0 82% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 218 22% 14%;
-    --input: 218 22% 14%;
-    --ring: 211 92% 65%;
+    --border: 240 35% 13%;
+    --input: 240 35% 13%;
+    --ring: 245 100% 70%;
 
     --radius: 0.875rem;
 
-    /* Status Colors */
-    --status-green: 158 64% 50%;
-    --status-green-dim: 158 64% 50% / 0.12;
-    --status-yellow: 38 88% 58%;
-    --status-yellow-dim: 38 88% 58% / 0.12;
-    --status-red: 2 88% 62%;
-    --status-red-dim: 2 88% 62% / 0.12;
+    /* Status */
+    --status-green:     158 70% 55%;
+    --status-green-dim: 158 70% 55% / 0.10;
+    --status-yellow:    38  88% 58%;
+    --status-yellow-dim: 38 88% 58% / 0.10;
+    --status-red:       2   84% 60%;
+    --status-red-dim:   2   84% 60% / 0.10;
 
-    /* Glow effects — slightly stronger */
-    --glow-green:  0 0 28px hsl(158 64% 50% / 0.22);
+    /* Glows */
+    --glow-green:  0 0 28px hsl(158 70% 55% / 0.22);
     --glow-yellow: 0 0 28px hsl(38  88% 58% / 0.22);
-    --glow-red:    0 0 28px hsl(2   88% 62% / 0.22);
-    --glow-accent: 0 0 28px hsl(211 92% 65% / 0.18);
+    --glow-red:    0 0 28px hsl(2   84% 60% / 0.22);
+    --glow-accent: 0 0 32px hsl(245 100% 70% / 0.22);
+    --glow-lime:   0 0 28px hsl(77  100% 58% / 0.28);
 
-    /* Elevated surfaces */
-    --bg-elevated: 220 28% 11%;
-    --bg-overlay:  220 24% 14%;
-    --border-subtle: 220 42% 8%;
+    /* Surfaces */
+    --bg-elevated:   240 40% 10%;
+    --bg-overlay:    240 30% 13%;
+    --border-subtle: 240 50%  7%;
 
     /* Sidebar */
-    --sidebar-background: 220 42% 6%;
-    --sidebar-foreground: 213 40% 92%;
-    --sidebar-primary: 211 92% 65%;
-    --sidebar-primary-foreground: 222 52% 4%;
-    --sidebar-accent: 218 22% 12%;
-    --sidebar-accent-foreground: 213 40% 92%;
-    --sidebar-border: 218 22% 13%;
-    --sidebar-ring: 211 92% 65%;
+    --sidebar-background:         240 55%  5%;
+    --sidebar-foreground:         240 20% 92%;
+    --sidebar-primary:            245 100% 70%;
+    --sidebar-primary-foreground: 240 60%  3%;
+    --sidebar-accent:             240 35% 11%;
+    --sidebar-accent-foreground:  240 20% 92%;
+    --sidebar-border:             240 35% 12%;
+    --sidebar-ring:               245 100% 70%;
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-
+  * { @apply border-border; }
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-
-  body {
-    @apply bg-background text-foreground font-body;
-  }
+  body { @apply bg-background text-foreground font-body; }
 }
 
 @layer utilities {
-  .font-display {
-    font-family: 'Syne', sans-serif;
-  }
-
-  .font-body {
-    font-family: 'DM Sans', sans-serif;
-  }
-
-  .font-mono {
-    font-family: 'JetBrains Mono', monospace;
-  }
+  .font-display { font-family: 'Syne', sans-serif; }
+  .font-body    { font-family: 'DM Sans', sans-serif; }
+  .font-mono    { font-family: 'JetBrains Mono', monospace; }
 
   .text-display {
     font-family: 'Syne', sans-serif;
-    font-weight: 700;
-    letter-spacing: -0.035em;
-    line-height: 1.1;
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    line-height: 0.95;
   }
 
-  .tabular-nums {
-    font-feature-settings: 'tnum';
-  }
+  .tabular-nums { font-feature-settings: 'tnum'; }
 
+  /* Glows */
   .glow-green  { box-shadow: var(--glow-green); }
   .glow-yellow { box-shadow: var(--glow-yellow); }
   .glow-red    { box-shadow: var(--glow-red); }
   .glow-accent { box-shadow: var(--glow-accent); }
+  .glow-lime   { box-shadow: var(--glow-lime); }
 
+  /* Card shadows — deeper for premium float effect */
   .card-shadow {
-    box-shadow: 0 0 0 1px hsl(var(--border)), 0 4px 12px -2px rgba(0,0,0,0.4);
+    box-shadow: 0 0 0 1px hsl(var(--border)),
+                0 4px 16px -2px rgba(0,0,0,0.5),
+                0 1px 0 0 rgba(255,255,255,0.03) inset;
   }
-
   .card-shadow-hover {
-    box-shadow: 0 0 0 1px hsl(var(--border)), 0 8px 24px -4px rgba(0,0,0,0.5);
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.35),
+                0 8px 32px -4px rgba(108,99,255,0.15),
+                0 1px 0 0 rgba(255,255,255,0.04) inset;
   }
 
-  /* Mono numbers — primary tint so they feel like data */
-  .font-mono {
-    color: hsl(var(--primary) / 0.92);
+  /* Lime accent button glow */
+  .glow-lime-btn {
+    box-shadow: 0 4px 20px rgba(186,255,41,0.25);
   }
 
-  /* Status dims — subtle filled pills */
-  .bg-status-green-dim { background: hsl(var(--status-green-dim)); }
+  /* Status dims */
+  .bg-status-green-dim  { background: hsl(var(--status-green-dim)); }
   .bg-status-yellow-dim { background: hsl(var(--status-yellow-dim)); }
-  .bg-status-red-dim { background: hsl(var(--status-red-dim)); }
+  .bg-status-red-dim    { background: hsl(var(--status-red-dim)); }
 
-  /* Tag pill — reusable */
-  .tag-pill {
+  /* Mono data text gets primary tint */
+  .data-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    letter-spacing: -0.03em;
+  }
+
+  /* Reward pill — lime */
+  .reward-pill {
     display: inline-flex;
     align-items: center;
-    padding: 2px 10px;
+    gap: 4px;
+    padding: 3px 10px;
     border-radius: 20px;
     font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.01em;
-  }
-
-/* iOS safe area support */
-@supports (padding: env(safe-area-inset-bottom)) {
-  body {
-    padding-bottom: env(safe-area-inset-bottom);
+    font-weight: 700;
+    background: hsl(77 100% 58% / 0.12);
+    color: hsl(77 100% 58%);
+    border: 1px solid hsl(77 100% 58% / 0.22);
   }
 }
 
+/* iOS safe area */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body { padding-bottom: env(safe-area-inset-bottom); }
+}
 .safe-pb {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
-}
 }
