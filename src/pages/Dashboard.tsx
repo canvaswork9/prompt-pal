@@ -165,6 +165,40 @@ const DashboardPage = () => {
 
   if (loading) return <SkeletonLoader />;
 
+  const hasAnyData = avgCalories > 0 || workoutCount > 0 || readinessChart.length > 0 || weightChart.length > 0;
+  if (!hasAnyData) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
+        <h1 className="text-display text-2xl">{t('dashboard')}</h1>
+        <div className="bg-card rounded-2xl p-8 card-shadow text-center space-y-6">
+          <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center text-3xl mx-auto">📊</div>
+          <div>
+            <h2 className="font-semibold text-lg mb-2">Dashboard unlocks as you log</h2>
+            <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
+              Log 3 days of check-ins, meals, and workouts to see your full summary — calories, readiness trend, and weight progress.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg mx-auto text-left">
+            {[
+              { icon: '⚡', label: 'Daily check-in', desc: 'Log sleep, HR & soreness', path: '/app' },
+              { icon: '📝', label: 'Log workout', desc: 'Track sets & reps', path: '/log' },
+              { icon: '🍽️', label: 'Log meals', desc: 'Mark what you ate', path: '/meal' },
+            ].map(item => (
+              <a key={item.path} href={item.path}
+                className="flex items-center gap-3 bg-secondary hover:bg-secondary/80 transition-colors rounded-xl p-3 cursor-pointer">
+                <span className="text-xl">{item.icon}</span>
+                <div>
+                  <div className="text-sm font-medium">{item.label}</div>
+                  <div className="text-xs text-muted-foreground">{item.desc}</div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const netCalories = avgCalories - Math.round(caloriesBurned / (period === 'today' ? 1 : period === '7days' ? 7 : 30));
   const periodDays = period === 'today' ? 1 : period === '7days' ? 7 : 30;
 
