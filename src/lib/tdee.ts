@@ -98,3 +98,25 @@ export function isOnTrack(
     actualWeeklyChange: Math.round((actual / weeks) * 10) / 10,
   };
 }
+
+// Volume-based calorie burn from weight training
+// Formula: Total Volume (kg × reps) × 0.1 kcal/kg
+// Based on research showing ~1 kcal per 10 kg·rep of mechanical work
+// Warmup sets excluded — they inflate volume without metabolic cost
+
+export interface SetVolume {
+  weight_kg: number | null;
+  reps: number | null;
+  is_warmup: boolean | null;
+}
+
+export function calculateVolumeCalories(sets: SetVolume[]): number {
+  const workingSets = sets.filter(s => !s.is_warmup && s.weight_kg && s.reps);
+  const totalVolume = workingSets.reduce(
+    (sum, s) => sum + (Number(s.weight_kg) * Number(s.reps)),
+    0
+  );
+  // 0.1 kcal per kg·rep is conservative — real value varies by exercise
+  // Compound lifts (squat, deadlift) ~0.12, isolation ~0.08
+  return Math.round(totalVolume * 0.1);
+}
