@@ -341,36 +341,47 @@ const WeightPage = () => {
             <div><span className="text-muted-foreground">BMR:</span> <span className="font-mono font-semibold">{tdeeTargets.bmr} kcal</span></div>
             <div><span className="text-muted-foreground">Target:</span> <span className="font-mono font-semibold">{tdeeTargets.calorieTarget} kcal/day</span></div>
             <div>
-              <span className="text-muted-foreground">Balance: </span>
-              {todayCaloriesIn > 0 || todayCaloriesBurned > 0 ? (
-                (() => {
-                  const balance = todayCaloriesIn - todayCaloriesBurned;
-                  const color = balance < -100
-                    ? 'text-status-green'
-                    : balance > 200
-                    ? 'text-status-red'
-                    : 'text-status-yellow';
-                  return (
-                    <span className={`font-mono font-semibold ${color}`}>
-                      {balance > 0 ? '+' : ''}{balance} kcal
-                    </span>
-                  );
-                })()
-              ) : (
+              <span className="text-muted-foreground">Remaining today: </span>
+              {todayCaloriesIn > 0 ? (() => {
+                const remaining = (tdeeTargets?.calorieTarget ?? 0) - todayCaloriesIn;
+                const color = remaining < -200
+                  ? 'text-status-red'       // over target
+                  : remaining < 200
+                  ? 'text-status-yellow'    // on target ±200
+                  : 'text-status-green';    // still under
+                return (
+                  <span className={`font-mono font-semibold ${color}`}>
+                    {remaining >= 0 ? `${remaining} left` : `${Math.abs(remaining)} over`} kcal
+                  </span>
+                );
+              })() : (
                 <span className="font-mono font-semibold text-muted-foreground">— kcal</span>
               )}
             </div>
           </div>
           {/* Today's breakdown */}
-          {(todayCaloriesIn > 0 || todayCaloriesBurned > 0) && (
-            <div className="bg-secondary rounded-lg px-3 py-2 text-xs text-muted-foreground space-y-1">
+          {todayCaloriesIn > 0 && (
+            <div className="bg-secondary rounded-lg px-3 py-2 text-xs text-muted-foreground space-y-1.5">
               <div className="flex justify-between">
                 <span>Eaten today</span>
-                <span className="font-mono">{todayCaloriesIn} kcal</span>
+                <span className="font-mono text-foreground">{todayCaloriesIn} kcal</span>
               </div>
               <div className="flex justify-between">
-                <span>Burned today (BMR + workout)</span>
-                <span className="font-mono">{todayCaloriesBurned} kcal</span>
+                <span>Daily target</span>
+                <span className="font-mono text-foreground">{tdeeTargets?.calorieTarget ?? 0} kcal</span>
+              </div>
+              {todayCaloriesBurned > tdeeTargets?.bmr && (
+                <div className="flex justify-between text-status-green">
+                  <span>Workout bonus</span>
+                  <span className="font-mono">+{todayCaloriesBurned - (tdeeTargets?.bmr ?? 0)} kcal budget</span>
+                </div>
+              )}
+              <div className="h-px bg-border/50" />
+              <div className="flex justify-between font-medium">
+                <span>{(tdeeTargets?.calorieTarget ?? 0) - todayCaloriesIn >= 0 ? 'Remaining' : 'Over by'}</span>
+                <span className={`font-mono ${(tdeeTargets?.calorieTarget ?? 0) - todayCaloriesIn < -200 ? 'text-status-red' : 'text-status-green'}`}>
+                  {Math.abs((tdeeTargets?.calorieTarget ?? 0) - todayCaloriesIn)} kcal
+                </span>
               </div>
             </div>
           )}
