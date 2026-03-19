@@ -43,6 +43,8 @@ const WeightPage = () => {
   const [weeklyRate, setWeeklyRate] = useState(0.5);
   const [saving, setSaving] = useState(false);
   const [tdeeTargets, setTdeeTargets] = useState<CalorieTargets | null>(null);
+  const [todayCaloriesIn, setTodayCaloriesIn] = useState(0);
+  const [todayCaloriesBurned, setTodayCaloriesBurned] = useState(0);
   const [profileInfo, setProfileInfo] = useState({ weight: 70, height: 170, age: 30, sex: 'other', activity: 'moderate', goal: 'general' });
 
   useEffect(() => {
@@ -54,11 +56,13 @@ const WeightPage = () => {
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-        const [{ data: profile }, { data: history }, { data: activeGoal }, { data: todayLog }] = await Promise.all([
+        const [{ data: profile }, { data: history }, { data: activeGoal }, { data: todayLog }, { data: todayMeals }, { data: todaySessions }] = await Promise.all([
           supabase.from('user_profiles').select('weight_kg, height_cm, age, sex, activity_level, fitness_goal').eq('id', user.id).maybeSingle(),
           supabase.from('weight_logs').select('date, weight_kg').eq('user_id', user.id).gte('date', ninetyDaysAgo.toISOString().slice(0, 10)).order('date', { ascending: true }),
           supabase.from('weight_goals').select('*').eq('user_id', user.id).eq('is_active', true).maybeSingle(),
           supabase.from('weight_logs').select('id').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
+          supabase.from('meal_logs').select('calories').eq('user_id', user.id).eq('date', todayStr()).eq('eaten', true),
+          supabase.from('workout_sessions').select('duration_min, split').eq('user_id', user.id).eq('date', todayStr()),
         ]);
 
         if (profile) {
@@ -73,7 +77,21 @@ const WeightPage = () => {
             goal: profile.fitness_goal || 'general',
           };
           setProfileInfo(info);
-          setTdeeTargets(calculateCalorieTargets(info.weight, info.height, info.age, info.sex, info.activity as any, info.goal as any));
+          const targets = calculateCalorieTargets(info.weight, info.height, info.age, info.sex, info.activity as any, info.goal as any);
+          setTdeeTargets(targets);
+
+          // Today's real calories IN — from marked meals
+          const calsIn = todayMeals?.reduce((s, m) => s + (m.calories || 0), 0) || 0;
+          setTodayCaloriesIn(calsIn);
+
+          // Today's real calories BURNED — BMR/day + workout MET estimate
+          const bmrToday = targets.bmr;
+          const workoutExtra = todaySessions?.reduce((s, session) => {
+            const durationHrs = (session.duration_min || 0) / 60;
+            const met = (session.split || '').toLowerCase().includes('cardio') ? 7.0 : 5.0;
+            return s + Math.round(met * w * durationHrs);
+          }, 0) || 0;
+          setTodayCaloriesBurned(bmrToday + workoutExtra);
         }
 
         if (history?.length) {
@@ -168,7 +186,7 @@ const WeightPage = () => {
   });
   const weekChange = weekAgo.length >= 2 ? weekAgo[weekAgo.length - 1].weight_kg - weekAgo[0].weight_kg : 0;
 
-  const trackStatus = goal ? isOnTrack(goal.start_weight_kg, currentWeight, goal.start_date || todayStr(), goal.weekly_target_kg) : null;
+  const trackStatus = goal ? isOnTrack(goal.start_weight_kg, currentWeight, goal.start_date, goal.weekly_target_kg) : null;
   const weeksEstimate = goal ? weeksToGoal(currentWeight, goal.target_weight_kg, goal.weekly_target_kg) : null;
 
   return (
@@ -318,8 +336,40 @@ const WeightPage = () => {
             <div><span className="text-muted-foreground">TDEE:</span> <span className="font-mono font-semibold">{tdeeTargets.tdee} kcal</span></div>
             <div><span className="text-muted-foreground">BMR:</span> <span className="font-mono font-semibold">{tdeeTargets.bmr} kcal</span></div>
             <div><span className="text-muted-foreground">Target:</span> <span className="font-mono font-semibold">{tdeeTargets.calorieTarget} kcal/day</span></div>
-            <div><span className="text-muted-foreground">{tdeeTargets.deficit < 0 ? 'Deficit' : tdeeTargets.deficit > 0 ? 'Surplus' : 'Balance'}:</span> <span className="font-mono font-semibold">{tdeeTargets.deficit > 0 ? '+' : ''}{tdeeTargets.deficit} kcal</span></div>
+            <div>
+              <span className="text-muted-foreground">Balance: </span>
+              {todayCaloriesIn > 0 || todayCaloriesBurned > 0 ? (
+                (() => {
+                  const balance = todayCaloriesIn - todayCaloriesBurned;
+                  const color = balance < -100
+                    ? 'text-status-green'
+                    : balance > 200
+                    ? 'text-status-red'
+                    : 'text-status-yellow';
+                  return (
+                    <span className={`font-mono font-semibold ${color}`}>
+                      {balance > 0 ? '+' : ''}{balance} kcal
+                    </span>
+                  );
+                })()
+              ) : (
+                <span className="font-mono font-semibold text-muted-foreground">— kcal</span>
+              )}
+            </div>
           </div>
+          {/* Today's breakdown */}
+          {(todayCaloriesIn > 0 || todayCaloriesBurned > 0) && (
+            <div className="bg-secondary rounded-lg px-3 py-2 text-xs text-muted-foreground space-y-1">
+              <div className="flex justify-between">
+                <span>Eaten today</span>
+                <span className="font-mono">{todayCaloriesIn} kcal</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Burned today (BMR + workout)</span>
+                <span className="font-mono">{todayCaloriesBurned} kcal</span>
+              </div>
+            </div>
+          )}
           <div className="text-sm">
             <span className="text-muted-foreground">Macros:</span>{' '}
             <span className="font-mono">P: {tdeeTargets.proteinTarget}g · C: {tdeeTargets.carbTarget}g · F: {tdeeTargets.fatTarget}g</span>
