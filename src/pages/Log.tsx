@@ -19,13 +19,12 @@ const LogPage = () => {
   const { lang } = useLanguage();
   const navigate = useNavigate();
   const logEnabled = useFeatureFlag('progressive_overload');
-  const { loading, saving, saveSet, autoSaveDuration, finishSession, getSetsForExercise, sessionStartFromDB } = useWorkout();
-  const [exercises, setExercises] = useState<{ key: string; name: string; type: string }[]>([]);
+  const { loading, saving, saveSet, finishSession, getSetsForExercise } = useWorkout();
+  const [exercises, setExercises] = useState<{ key: string; name: string; type: string; green_sets?: string; yellow_sets?: string; muscles?: string }[]>([]);
+  const [checkinStatus, setCheckinStatus] = useState<string>('Yellow');
   const [currentEx, setCurrentEx] = useState(0);
   const [localSets, setLocalSets] = useState<WorkingSet[]>([]);
-  // Use DB created_at if available (returning user), otherwise fallback to mount time
   const [sessionStart] = useState(() => Date.now());
-  const effectiveStart = sessionStartFromDB ?? sessionStart;
   const [restTimer, setRestTimer] = useState<{ active: boolean; seconds: number }>({ active: false, seconds: 0 });
   const [lastWeights, setLastWeights] = useState<Record<string, number>>({});
 
@@ -49,10 +48,14 @@ const LogPage = () => {
             (profile?.experience as any) || 'intermediate',
             (checkin.muscle_soreness as any) || 'none'
           );
+          setCheckinStatus(checkin.status || 'Yellow');
           setExercises(exList.map(e => ({
             key: e.key,
             name: lang === 'th' ? e.name_th : e.name_en,
             type: e.type,
+            green_sets: (e as any).green_sets,
+            yellow_sets: (e as any).yellow_sets,
+            muscles: (e as any).muscles,
           })));
         } else {
           exList = [
@@ -129,18 +132,8 @@ const LogPage = () => {
     }
   };
 
-  // Auto-save duration every 60s — uses real DB start time so elapsed is accurate
-  useEffect(() => {
-    if (exercises.length === 0) return;
-    const interval = setInterval(() => {
-      const elapsed = Math.round((Date.now() - effectiveStart) / 60000);
-      if (elapsed > 0) autoSaveDuration(elapsed);
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [exercises, effectiveStart, autoSaveDuration]);
-
   const handleFinish = async () => {
-    const durationMin = Math.round((Date.now() - effectiveStart) / 60000);
+    const durationMin = Math.round((Date.now() - sessionStart) / 60000);
     await finishSession(durationMin);
     navigate('/progress');
   };
@@ -180,9 +173,42 @@ const LogPage = () => {
       </div>
 
       <motion.div key={currentEx} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card rounded-xl p-4 sm:p-5 card-shadow space-y-4">
-        <h2 className="font-semibold text-lg">
-          Exercise {currentEx + 1} of {exercises.length}: {exercises[currentEx].name}
-        </h2>
+        {/* Header with progress + plan info */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground font-mono">
+              Exercise {currentEx + 1} of {exercises.length}
+            </span>
+            {/* Mini progress dots */}
+            <div className="flex gap-1">
+              {exercises.map((_, idx) => (
+                <div key={idx} className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                  idx < currentEx ? 'bg-status-green' :
+                  idx === currentEx ? 'bg-primary' : 'bg-secondary'
+                }`} />
+              ))}
+            </div>
+          </div>
+          <h2 className="font-semibold text-lg">{exercises[currentEx].name}</h2>
+          {/* Plan info from Workout page — no need to go there first */}
+          <div className="flex flex-wrap gap-2">
+            {exercises[currentEx].muscles && (
+              <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                {exercises[currentEx].muscles}
+              </span>
+            )}
+            {(exercises[currentEx].green_sets || exercises[currentEx].yellow_sets) && (
+              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-mono">
+                Target: {checkinStatus === 'Green'
+                  ? exercises[currentEx].green_sets
+                  : exercises[currentEx].yellow_sets}
+              </span>
+            )}
+            <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+              Rest: {exercises[currentEx].type === 'compound' ? '2 min' : '90s'}
+            </span>
+          </div>
+        </div>
 
         {restTimer.active && (
           <RestTimer seconds={restTimer.seconds} onDone={() => setRestTimer({ active: false, seconds: 0 })} />
