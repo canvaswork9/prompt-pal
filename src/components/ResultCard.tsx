@@ -99,14 +99,55 @@ const ResultCard = ({ result, data, onBack }: ResultCardProps) => {
         </div>
       </details>
 
-      {/* Action Buttons */}
-      <div className="flex gap-3">
-        <Button variant="accent" className="flex-1" onClick={() => navigate('/workout')}>
-          {t('see_workout')}
-        </Button>
-        <Button variant="outline" className="flex-1" onClick={() => navigate('/meal')}>
-          {t('open_meal')}
-        </Button>
+      {/* Next Steps */}
+      <div className="bg-secondary/50 rounded-xl p-4 space-y-2">
+        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest mb-3">What to do next</p>
+        {result.status !== 'Red' ? (
+          <>
+            {[
+              { step: 1, label: 'See today\'s workout plan', sub: result.training_split, path: '/workout', primary: true },
+              { step: 2, label: 'Log your sets while training', sub: 'Track weight & reps per set', path: '/log', primary: false },
+              { step: 3, label: 'Log your meals', sub: 'Track calories & macros', path: '/meal', primary: false },
+            ].map(s => (
+              <button key={s.step} onClick={() => navigate(s.path)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all active:scale-[0.98] ${
+                  s.primary
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90 glow-accent'
+                    : 'bg-card hover:bg-card/80 border border-border'
+                }`}>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                  s.primary ? 'bg-white/20' : 'bg-primary/15 text-primary'
+                }`}>{s.step}</span>
+                <div className="flex-1">
+                  <div className={`text-sm font-medium ${s.primary ? '' : 'text-foreground'}`}>{s.label}</div>
+                  <div className={`text-xs ${s.primary ? 'opacity-70' : 'text-muted-foreground'}`}>{s.sub}</div>
+                </div>
+                <span className="opacity-50 text-sm">→</span>
+              </button>
+            ))}
+          </>
+        ) : (
+          <>
+            {[
+              { step: 1, label: 'See recovery exercises', sub: 'Mobility & stretching only', path: '/workout', primary: true },
+              { step: 2, label: 'Log your meals', sub: 'Nutrition supports recovery', path: '/meal', primary: false },
+            ].map(s => (
+              <button key={s.step} onClick={() => navigate(s.path)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all active:scale-[0.98] ${
+                  s.primary ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-card hover:bg-card/80 border border-border'
+                }`}>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                  s.primary ? 'bg-white/20' : 'bg-primary/15 text-primary'
+                }`}>{s.step}</span>
+                <div className="flex-1">
+                  <div className={`text-sm font-medium ${s.primary ? '' : 'text-foreground'}`}>{s.label}</div>
+                  <div className={`text-xs ${s.primary ? 'opacity-70' : 'text-muted-foreground'}`}>{s.sub}</div>
+                </div>
+                <span className="opacity-50 text-sm">→</span>
+              </button>
+            ))}
+          </>
+        )}
       </div>
     </motion.div>
   );
