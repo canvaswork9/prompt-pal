@@ -82,14 +82,12 @@ const BottomNav = () => {
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 text-xs transition-colors relative
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 text-xs transition-all relative
                   ${active ? 'text-primary' : 'text-muted-foreground'}`}
               >
-                {active && (
-                  <span className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
-                )}
+                {active && <span className="absolute top-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />}
                 <span className="text-lg leading-none mt-1">{item.icon}</span>
-                <span className={active ? 'font-medium' : ''}>{t(item.labelKey)}</span>
+                <span className={`text-[10px] tracking-wide ${active ? 'font-semibold' : ''}`}>{t(item.labelKey)}</span>
               </NavLink>
             );
           })}
