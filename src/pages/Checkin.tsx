@@ -77,8 +77,8 @@ const CheckinPage = () => {
 
       {/* Header */}
       <div className="space-y-1">
-        <h1 className="text-display text-3xl sm:text-4xl">{t('greeting')}, {displayName || user?.email?.split('@')[0] || 'User'} 👋</h1>
-        <p className="text-muted-foreground text-sm">{dayName}, {dateStr} · {t('time_to_checkin')}</p>
+        <h1 className="text-display text-2xl sm:text-3xl">{t('greeting')}, {displayName || user?.email?.split('@')[0] || 'User'} 👋</h1>
+        <p className="text-muted-foreground">{dayName}, {dateStr} · {t('time_to_checkin')}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -93,7 +93,7 @@ const CheckinPage = () => {
                 <div className="space-y-2 pt-1">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">4h</span>
-                    <span className="font-mono text-primary">{data.sleep_hours.toFixed(1)} {t('hrs')}</span>
+                    <span className="text-data-sm">{data.sleep_hours.toFixed(1)} {t('hrs')}</span>
                     <span className="text-muted-foreground">12h</span>
                   </div>
                   <Slider value={[data.sleep_hours]} onValueChange={v => setData(d => ({ ...d, sleep_hours: v[0] }))} min={4} max={12} step={0.5} />
@@ -122,7 +122,7 @@ const CheckinPage = () => {
                 <div className="space-y-2 pt-1">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">40</span>
-                    <span className="font-mono text-primary">{data.resting_hr} {t('bpm')}</span>
+                    <span className="text-data-sm">{data.resting_hr} {t('bpm')}</span>
                     <span className="text-muted-foreground">100</span>
                   </div>
                   <Slider value={[data.resting_hr]} onValueChange={v => setData(d => ({ ...d, resting_hr: v[0] }))} min={40} max={100} step={1} />
@@ -179,11 +179,11 @@ const CheckinPage = () => {
               >
                 <div className="flex items-center gap-2">
                   <span className="text-base leading-none">{icon}</span>
-                  <span className="font-semibold text-sm">{label}</span>
+                  <span className="font-semibold text-sm tracking-tight">{label}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {expandedCard !== i && (
-                    <span className={`text-xs font-mono font-medium ${summaryColor || 'text-muted-foreground'}`}>
+                    <span className={`text-data-sm ${summaryColor || 'text-muted-foreground'}`}>
                       {summary}
                     </span>
                   )}
@@ -224,13 +224,13 @@ const CheckinPage = () => {
 
       {/* Submit */}
       <Button
-        variant="lime"
+        variant="accent"
         size="xl"
-        className="w-full font-display tracking-widest uppercase text-sm"
+        className="w-full"
         disabled={saving || submitted}
         onClick={handleSave}
       >
-        {saving ? '...' : submitted ? '⚡ ' + t('analyze') + ' ✓' : '⚡ ANALYZE MY READINESS'}
+        {saving ? '...' : submitted ? t('analyze') + ' ✓' : t('analyze')}
       </Button>
     </div>
   );
