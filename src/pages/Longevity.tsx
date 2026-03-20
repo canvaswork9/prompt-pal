@@ -33,7 +33,9 @@ interface BioAge {
   sleepAdj: number;
   greenAdj: number;
   trainAdj: number;
-  hasAge: boolean;         // false if no age in profile
+  bodyFatAdj: number;      // adjustment from body fat %
+  hasAge: boolean;
+  hasBodyComp: boolean;    // true if body fat data available
 }
 
 interface LongevityScore {
@@ -247,49 +249,52 @@ const DEBT_CONFIG = {
   HIGH:      { color: 'hsl(2 84% 60%)',    bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.25)',   label: 'HIGH DEBT'  },
   CRITICAL:  { color: 'hsl(0 100% 55%)',   bg: 'rgba(220,20,20,0.1)',   border: 'rgba(220,20,20,0.35)',   label: 'CRITICAL'   },
 };
-function calcBioAge(score: LongevityScore, chronAge: number | null): BioAge {
+function calcBioAge(score: LongevityScore, chronAge: number | null, bodyFatPct?: number): BioAge {
   if (!chronAge || chronAge <= 0) {
-    return { bioAge: 0, chronAge: 0, delta: 0, label: 'ON TRACK', hrAdj: 0, sleepAdj: 0, greenAdj: 0, trainAdj: 0, hasAge: false };
+    return { bioAge: 0, chronAge: 0, delta: 0, label: 'ON TRACK', hrAdj: 0, sleepAdj: 0, greenAdj: 0, trainAdj: 0, bodyFatAdj: 0, hasAge: false, hasBodyComp: false };
   }
   if (score.totalDays < 7) {
-    return { bioAge: chronAge, chronAge, delta: 0, label: 'ON TRACK', hrAdj: 0, sleepAdj: 0, greenAdj: 0, trainAdj: 0, hasAge: true };
+    return { bioAge: chronAge, chronAge, delta: 0, label: 'ON TRACK', hrAdj: 0, sleepAdj: 0, greenAdj: 0, trainAdj: 0, bodyFatAdj: 0, hasAge: true, hasBodyComp: false };
   }
 
-  // HR adjustment — most reliable cardiovascular biomarker
+  // HR adjustment
   const hrAdj = score.avgHR <= 0  ? 0
-    : score.avgHR < 55  ? -4
-    : score.avgHR < 60  ? -2
-    : score.avgHR < 65  ?  0
-    : score.avgHR < 70  ? +2
-    : score.avgHR < 76  ? +4
-    :                      +6;
+    : score.avgHR < 55  ? -4 : score.avgHR < 60  ? -2
+    : score.avgHR < 65  ?  0 : score.avgHR < 70  ? +2
+    : score.avgHR < 76  ? +4 :                     +6;
 
   // Sleep adjustment
   const sleepAdj = score.avgSleep <= 0  ?  0
-    : score.avgSleep >= 7.5 ? -2
-    : score.avgSleep >= 7.0 ? -1
-    : score.avgSleep >= 6.5 ?  0
-    : score.avgSleep >= 6.0 ? +2
-    :                          +4;
+    : score.avgSleep >= 7.5 ? -2 : score.avgSleep >= 7.0 ? -1
+    : score.avgSleep >= 6.5 ?  0 : score.avgSleep >= 6.0 ? +2 : +4;
 
-  // Green day rate adjustment — resilience proxy
+  // Green day rate adjustment
   const greenAdj = score.greenRate >= 70 ? -2
-    : score.greenRate >= 50 ? -1
-    : score.greenRate >= 30 ?  0
-    :                          +2;
+    : score.greenRate >= 50 ? -1 : score.greenRate >= 30 ?  0 : +2;
 
-  // Training consistency adjustment — cardiorespiratory proxy
+  // Training consistency adjustment
   const trainAdj = score.workoutsPerWeek >= 4 ? -2
-    : score.workoutsPerWeek >= 3 ? -1
-    : score.workoutsPerWeek >= 2 ?  0
-    :                               +2;
+    : score.workoutsPerWeek >= 3 ? -1 : score.workoutsPerWeek >= 2 ?  0 : +2;
 
-  const totalAdj = hrAdj + sleepAdj + greenAdj + trainAdj;
+  // Body fat % adjustment (new — improves accuracy when available)
+  // Elite <10% = -3, Athletic 10-15% = -2, Fit 15-20% = -1, Average 20-25% = 0, High 25-30% = +2, Obese 30%+ = +4
+  let bodyFatAdj = 0;
+  const hasBodyComp = bodyFatPct !== undefined && bodyFatPct > 0;
+  if (hasBodyComp && bodyFatPct !== undefined) {
+    bodyFatAdj = bodyFatPct < 10 ? -3
+      : bodyFatPct < 15 ? -2
+      : bodyFatPct < 20 ? -1
+      : bodyFatPct < 25 ?  0
+      : bodyFatPct < 30 ? +2
+      :                   +4;
+  }
+
+  const totalAdj = hrAdj + sleepAdj + greenAdj + trainAdj + bodyFatAdj;
   const bioAge   = Math.max(18, chronAge + totalAdj);
   const delta    = bioAge - chronAge;
   const label    = delta <= -2 ? 'YOUNGER' : delta >= 3 ? 'OLDER' : 'ON TRACK';
 
-  return { bioAge, chronAge, delta, label, hrAdj, sleepAdj, greenAdj, trainAdj, hasAge: true };
+  return { bioAge, chronAge, delta, label, hrAdj, sleepAdj, greenAdj, trainAdj, bodyFatAdj, hasAge: true, hasBodyComp };
 }
 
 function generateInsights(score: LongevityScore): Insight[] {
@@ -349,6 +354,7 @@ const LongevityPage = () => {
   const [days, setDays]           = useState<DayData[]>([]);
   const [workouts, setWorkouts]   = useState<WorkoutDay[]>([]);
   const [profile, setProfile]     = useState<UserProfile>({ age: null });
+  const [bodyFatPct, setBodyFatPct] = useState<number | undefined>(undefined);
   const [coachMsg, setCoachMsg]   = useState('');
   const [coachLoading, setCoachLoading] = useState(false);
 
@@ -365,7 +371,7 @@ const LongevityPage = () => {
       supabase.from('workout_sessions')
         .select('date').eq('user_id', user.id).gte('date', since),
       supabase.from('user_profiles')
-        .select('age').eq('id', user.id).maybeSingle(),
+        .select('age, body_fat_pct').eq('id', user.id).maybeSingle(),
     ]);
 
     const map = new Map<string, DayData>();
@@ -382,6 +388,11 @@ const LongevityPage = () => {
     setDays(allDays);
     setWorkouts((wRes.data ?? []).map(w => ({ date: w.date })));
     setProfile({ age: (pRes.data as any)?.age ?? null });
+
+    // Load body composition from Supabase user_profiles
+    const bodyFat = (pRes.data as any)?.body_fat_pct;
+    if (bodyFat && Number(bodyFat) > 0) setBodyFatPct(Number(bodyFat));
+
     setLoading(false);
   }, [user]);
 
@@ -424,7 +435,7 @@ const LongevityPage = () => {
   }, [user]);
 
   const score        = calcLongevityScore(days, workouts);
-  const bioAge       = calcBioAge(score, profile.age);
+  const bioAge       = calcBioAge(score, profile.age, bodyFatPct);
   const recovDebt    = calcRecoveryDebt(days, workouts);
   const insights     = generateInsights(score);
   const gc           = GRADE_CONFIG[score.grade];
@@ -579,10 +590,11 @@ const LongevityPage = () => {
                 </p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                   {[
-                    { label: 'Resting HR',  adj: bioAge.hrAdj,    icon: '❤️' },
-                    { label: 'Sleep',        adj: bioAge.sleepAdj, icon: '😴' },
-                    { label: 'Resilience',   adj: bioAge.greenAdj, icon: '⚡' },
-                    { label: 'Training',     adj: bioAge.trainAdj, icon: '🏋️' },
+                    { label: 'Resting HR',  adj: bioAge.hrAdj,       icon: '❤️' },
+                    { label: 'Sleep',        adj: bioAge.sleepAdj,    icon: '😴' },
+                    { label: 'Resilience',   adj: bioAge.greenAdj,    icon: '⚡' },
+                    { label: 'Training',     adj: bioAge.trainAdj,    icon: '🏋️' },
+                    ...(bioAge.hasBodyComp ? [{ label: 'Body Fat',  adj: bioAge.bodyFatAdj, icon: '📊' }] : []),
                   ].map(({ label, adj, icon }) => {
                     const adjColor = adj < 0 ? 'hsl(77 100% 58%)' : adj > 0 ? 'hsl(2 84% 60%)' : 'hsl(245 100% 70%)';
                     return (
@@ -607,19 +619,19 @@ const LongevityPage = () => {
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {[
-                    { label: 'HRV — Heart Rate Variability',     source: 'Whoop · Oura · Garmin' },
-                    { label: 'VO2max',                            source: 'Apple Watch · Garmin' },
-                    { label: 'Body composition (muscle / fat %)', source: 'Smart scale · DEXA' },
-                    { label: 'Metabolic markers (glucose, HbA1c)',source: 'Blood panel' },
-                  ].map(({ label, source }) => (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#07070f', borderRadius: 8, border: '1px solid #111125' }}>
-                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#1e1e3a', flexShrink: 0 }} />
+                    { label: 'HRV — Heart Rate Variability',     source: 'Whoop · Oura · Garmin',  unlocked: false },
+                    { label: 'VO2max',                            source: 'Apple Watch · Garmin',   unlocked: false },
+                    { label: 'Body composition (muscle / fat %)', source: bodyFatPct ? `${bodyFatPct}% body fat logged ✓` : 'Settings → Body Composition', unlocked: !!bodyFatPct },
+                    { label: 'Metabolic markers (glucose, HbA1c)',source: 'Blood panel',             unlocked: false },
+                  ].map(({ label, source, unlocked }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: unlocked ? 'rgba(186,255,41,0.05)' : '#07070f', borderRadius: 8, border: unlocked ? '1px solid rgba(186,255,41,0.2)' : '1px solid #111125' }}>
+                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: unlocked ? 'hsl(77 100% 58%)' : '#1e1e3a', flexShrink: 0 }} />
                       <div style={{ flex: 1 }}>
-                        <span style={{ fontFamily: DM, fontSize: 12, color: '#404070' }}>{label}</span>
-                        <span style={{ fontFamily: BC, fontSize: 10, color: '#2a2a50', letterSpacing: '0.04em', marginLeft: 6 }}>— {source}</span>
+                        <span style={{ fontFamily: DM, fontSize: 12, color: unlocked ? '#c0c0e0' : '#404070' }}>{label}</span>
+                        <span style={{ fontFamily: BC, fontSize: 10, color: unlocked ? 'hsl(77 100% 58%)' : '#2a2a50', letterSpacing: '0.04em', marginLeft: 6 }}>— {source}</span>
                       </div>
-                      <span style={{ fontFamily: BC, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#2a2a50', background: '#111125', padding: '2px 7px', borderRadius: 10 }}>
-                        SOON
+                      <span style={{ fontFamily: BC, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: unlocked ? 'hsl(77 100% 58%)' : '#2a2a50', background: unlocked ? 'rgba(186,255,41,0.1)' : '#111125', padding: '2px 7px', borderRadius: 10 }}>
+                        {unlocked ? 'ACTIVE' : 'SOON'}
                       </span>
                     </div>
                   ))}
