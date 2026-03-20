@@ -289,11 +289,11 @@ const MealPage = () => {
         <div className="mt-4 space-y-2">
           <div className="flex justify-between text-xs text-muted-foreground"><span>Calories</span><span>{totals.calories} / {macros.calories} kcal</span></div>
           <div className="h-2 bg-secondary rounded-full overflow-hidden">
-            <motion.div className="h-full bg-primary rounded-full" initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.calories / macros.calories) * 100)}%` }} />
+            <motion.div className="h-full rounded-full" style={{ background: 'linear-gradient(90deg, hsl(245 100% 70%), hsl(77 100% 58%))' }} initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.calories / macros.calories) * 100)}%` }} />
           </div>
           <div className="flex justify-between text-xs text-muted-foreground"><span>Protein</span><span>{totals.protein} / {macros.protein}g</span></div>
           <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-            <motion.div className="h-full bg-status-green rounded-full" initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.protein / macros.protein) * 100)}%` }} />
+            <motion.div className="h-full bg-accent rounded-full" initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.protein / macros.protein) * 100)}%` }} />
           </div>
         </div>
       </div>
