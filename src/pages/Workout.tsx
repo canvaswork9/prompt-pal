@@ -20,6 +20,7 @@ const WorkoutPage = () => {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [experience, setExperience] = useState<string>('intermediate');
+  const [prMap, setPrMap] = useState<Record<string, number>>({}); // exercise_key → estimated_1rm
 
   useEffect(() => {
     async function load() {
@@ -27,12 +28,24 @@ const WorkoutPage = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { setLoading(false); return; }
 
-        const [{ data: checkin }, { data: profile }] = await Promise.all([
+        const [{ data: checkin }, { data: profile }, { data: prs }] = await Promise.all([
           supabase.from('daily_checkins').select('*').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
           supabase.from('user_profiles').select('experience').eq('id', user.id).maybeSingle(),
+          supabase.from('personal_records').select('exercise_key, estimated_1rm').eq('user_id', user.id),
         ]);
 
         if (profile?.experience) setExperience(profile.experience);
+
+        // Build PR map: best 1RM per exercise
+        const map: Record<string, number> = {};
+        for (const pr of prs ?? []) {
+          if (pr.exercise_key && pr.estimated_1rm) {
+            if (!map[pr.exercise_key] || pr.estimated_1rm > map[pr.exercise_key]) {
+              map[pr.exercise_key] = Number(pr.estimated_1rm);
+            }
+          }
+        }
+        setPrMap(map);
 
         if (checkin && checkin.readiness_score) {
           setCheckinData({
@@ -65,6 +78,41 @@ const WorkoutPage = () => {
 
   const { score, status, split, soreness } = checkinData;
   const exercises = selectExercises(split, status as any, experience as any, soreness as any);
+
+  // ── Adaptive Load Algorithm ────────────────────────────────
+  // Parse sets string to get rep range midpoint → intensity factor
+  const intensityFromSets = (setsStr: string): number => {
+    if (!setsStr || setsStr === 'Skip') return 0.65;
+    const match = setsStr.match(/(\d+)(?:–|-)(\d+)/);
+    if (match) {
+      const mid = (parseInt(match[1]) + parseInt(match[2])) / 2;
+      if (mid <= 4)  return 0.90;
+      if (mid <= 6)  return 0.85;
+      if (mid <= 8)  return 0.78;
+      if (mid <= 10) return 0.72;
+      if (mid <= 12) return 0.67;
+      if (mid <= 15) return 0.62;
+      return 0.55;
+    }
+    if (setsStr.includes('AMRAP')) return 0.60;
+    return 0.65;
+  };
+
+  const readinessModifier = (s: number): number =>
+    s >= 90 ? 1.02 :  // slight push for PR zone
+    s >= 70 ? 1.00 :
+    s >= 55 ? 0.85 :
+    s >= 45 ? 0.75 :
+              0.60;
+
+  const calcTargetWeight = (exerciseKey: string, setsStr: string, s: number): number | null => {
+    const rm = prMap[exerciseKey];
+    if (!rm || rm <= 0) return null;
+    const raw = rm * intensityFromSets(setsStr) * readinessModifier(s);
+    return Math.round(raw / 2.5) * 2.5; // round to nearest 2.5kg
+  };
+
+  const isPrZone = score >= 88;
 
   const getIntensityBands = (s: number) => [
     { range: '85–100', icon: '🔥', desc: 'Push for PRs — your body is ready', active: s >= 85 },
@@ -108,7 +156,12 @@ const WorkoutPage = () => {
             <h3 className="font-semibold">Rest Day</h3>
             <p className="text-sm text-muted-foreground">Your body needs recovery today. Light movement like walking or stretching is fine.</p>
           </div>
-        ) : exercises.map((ex, i) => (
+        ) : exercises.map((ex, i) => {
+          const todaySets = status === 'Green' ? ex.green_sets : ex.yellow_sets;
+          const targetKg  = calcTargetWeight(ex.key, todaySets, score);
+          const hasPR     = !!prMap[ex.key];
+
+          return (
           <motion.div key={ex.key} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }} className="bg-card rounded-xl p-4 card-shadow hover:card-shadow-hover transition-shadow">
             <div className="flex items-start justify-between mb-2">
               <div>
@@ -119,21 +172,50 @@ const WorkoutPage = () => {
                 </div>
                 <p className="text-xs text-muted-foreground">{ex.muscles}</p>
               </div>
+              {isPrZone && hasPR && ex.type === 'compound' && (
+                <span className="text-[10px] px-2 py-1 rounded-full font-bold" style={{ background: 'rgba(186,255,41,0.12)', color: 'hsl(77 100% 58%)', border: '1px solid rgba(186,255,41,0.3)' }}>
+                  ⚡ PR ZONE
+                </span>
+              )}
             </div>
+
+            {/* ── ADAPTIVE LOAD SUGGESTION ── */}
             <div className="grid grid-cols-3 gap-2 my-3">
               <div className="bg-secondary rounded-lg p-2 text-center">
                 <div className="text-[10px] text-muted-foreground uppercase">Sets × Reps</div>
-                <div className="font-mono font-semibold text-sm">{status === 'Green' ? ex.green_sets : ex.yellow_sets}</div>
+                <div className="font-mono font-semibold text-sm">{todaySets}</div>
               </div>
               <div className="bg-secondary rounded-lg p-2 text-center">
                 <div className="text-[10px] text-muted-foreground uppercase">Rest</div>
                 <div className="font-mono font-semibold text-sm">{ex.type === 'compound' ? '2 min' : '90s'}</div>
               </div>
-              <div className="bg-secondary rounded-lg p-2 text-center">
-                <div className="text-[10px] text-muted-foreground uppercase">Load</div>
-                <div className="font-semibold text-sm">{loadNote}</div>
-              </div>
+              {/* Target weight — show if PR exists, else show loadNote */}
+              {targetKg ? (
+                <div className="rounded-lg p-2 text-center" style={{ background: 'rgba(108,99,255,0.1)', border: '1px solid rgba(108,99,255,0.25)' }}>
+                  <div className="text-[10px] uppercase" style={{ color: 'hsl(245 100% 70%)', opacity: 0.7 }}>TARGET</div>
+                  <div className="font-mono font-bold text-sm" style={{ color: 'hsl(245 100% 75%)' }}>{targetKg} kg</div>
+                </div>
+              ) : (
+                <div className="bg-secondary rounded-lg p-2 text-center">
+                  <div className="text-[10px] text-muted-foreground uppercase">Load</div>
+                  <div className="font-semibold text-sm">{loadNote}</div>
+                </div>
+              )}
             </div>
+
+            {/* PR context line */}
+            {hasPR && (
+              <p className="text-[11px] mb-2" style={{ color: '#404070' }}>
+                Est. 1RM: <span style={{ color: 'hsl(245 100% 70%)', fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{prMap[ex.key]}kg</span>
+                {targetKg && <> · Target = {Math.round(intensityFromSets(todaySets) * readinessModifier(score) * 100)}% of 1RM</>}
+              </p>
+            )}
+            {!hasPR && ex.type === 'compound' && (
+              <p className="text-[11px] mb-2" style={{ color: '#2a2a50' }}>
+                Log this exercise to unlock personalised weight targets
+              </p>
+            )}
+
             <button onClick={() => setExpandedTips(expandedTips === ex.key ? null : ex.key)} className="text-xs text-primary hover:text-primary/80 transition-colors">
               {expandedTips === ex.key ? '▲ Hide Form Tips' : '▼ Form Tips'}
             </button>
@@ -145,7 +227,8 @@ const WorkoutPage = () => {
               </motion.ul>
             )}
           </motion.div>
-        ))}
+          );
+        })}
       </div>
 
       <Button variant="accent" className="w-full" onClick={() => navigate('/log')}>📝 Start Logging Sets</Button>
