@@ -188,7 +188,7 @@ const LogPage = () => {
         {/* Header: progress + plan info */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-mono">Exercise {currentEx + 1} of {exercises.length}</span>
+            <span className="text-label">Exercise {currentEx + 1} of {exercises.length}</span>
             <div className="flex gap-1">
               {exercises.map((_, idx) => (
                 <div key={idx} className={`w-1.5 h-1.5 rounded-full transition-colors ${
@@ -222,22 +222,22 @@ const LogPage = () => {
         {/* Card-based set layout (mobile-friendly) */}
         <div className="space-y-2">
           {localSets.map((s, i) => (
-            <div key={i} className={`rounded-xl border p-3 transition-all ${
+            <div key={i} className={`rounded-xl border p-3 transition-colors ${
               s.saved
-                ? 'border-accent/30 bg-accent/5'
-                : 'border-border bg-secondary/20'
+                ? 'border-status-green/40 bg-status-green/5'
+                : 'border-border bg-secondary/30'
             }`}>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-mono font-medium text-muted-foreground">
+                <span className="text-label">
                   {s.is_warmup ? 'Warm-up' : `Set ${s.set_number}`}
                 </span>
                 {s.saved ? (
-                  <span className="text-accent text-xs font-bold tracking-wide">✓ SAVED</span>
+                  <span className="text-status-green text-xs font-medium">✓ Saved</span>
                 ) : (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 px-3 text-xs font-semibold text-accent hover:bg-accent/10"
+                    className="h-8 px-3 text-xs"
                     onClick={() => handleSaveSet(i)}
                     disabled={saving || s.weight_kg <= 0 || s.reps <= 0}
                   >
@@ -247,7 +247,7 @@ const LogPage = () => {
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide block text-center">kg</label>
+                  <label className="text-label block text-center">kg</label>
                   <Input
                     type="number"
                     inputMode="decimal"
@@ -259,7 +259,7 @@ const LogPage = () => {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide block text-center">Reps</label>
+                  <label className="text-label block text-center">Reps</label>
                   <Input
                     type="number"
                     inputMode="numeric"
@@ -270,7 +270,7 @@ const LogPage = () => {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide block text-center">RPE</label>
+                  <label className="text-label block text-center">RPE</label>
                   <Input
                     type="number"
                     inputMode="numeric"
@@ -290,21 +290,15 @@ const LogPage = () => {
         <Button variant="outline" size="sm" onClick={addSet}>+ Add Set</Button>
 
         {bestSet && (
-          <div className="bg-secondary/50 border border-border rounded-xl p-3 space-y-1 text-sm">
-            <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Best set</div>
-            <div className="flex items-center justify-between">
-              <span className="font-mono font-semibold">{bestSet.weight_kg} kg × {bestSet.reps}</span>
-              <div className="text-right">
-                <span className="text-xs text-muted-foreground">Est. 1RM </span>
-                <span className="font-mono font-bold text-accent">~{best1RM} kg</span>
-              </div>
-            </div>
+          <div className="bg-secondary rounded-lg p-3 space-y-1 text-sm">
+            <div>Best set: <span className="font-mono font-semibold">{bestSet.weight_kg} kg × {bestSet.reps}</span></div>
+            <div>Est. 1RM: <span className="font-mono font-semibold">~{best1RM} kg</span></div>
           </div>
         )}
 
         {lastWeights[exercises[currentEx]?.key] > 0 && !bestSet && (
           <div className="text-xs text-muted-foreground bg-secondary rounded-lg px-3 py-2">
-            📊 Last PR: <span className="font-mono font-medium">{lastWeights[exercises[currentEx].key]} kg</span> — pre-filled above
+            📊 Last PR: <span className="text-data-sm">{lastWeights[exercises[currentEx].key]} kg</span> — pre-filled above
           </div>
         )}
       </motion.div>
