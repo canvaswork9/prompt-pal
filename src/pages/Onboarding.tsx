@@ -1,274 +1,328 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import { useLanguage } from '@/lib/i18n';
-import { calculateCalorieTargets } from '@/lib/tdee';
-import SkeletonLoader from '@/components/SkeletonLoader';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import type { OnboardingData, Sex, FitnessGoal, ExperienceLevel } from '@/lib/types';
 
-type Period = 'today' | '7days' | '30days';
+/* ─────────────────────────────────────────
+   ONBOARDING — Apex Dark Premium
+   6 steps · animated · full-screen
+───────────────────────────────────────── */
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+interface Props {
+  onComplete: (data: OnboardingData) => void;
+}
 
-const DashboardPage = () => {
-  const { t } = useLanguage();
-  const [period, setPeriod] = useState<Period>('7days');
-  const [loading, setLoading] = useState(true);
+const BC   = "'Barlow Condensed', sans-serif";
+const DM   = "'DM Sans', sans-serif";
+const MONO = "'JetBrains Mono', monospace";
 
-  const [avgCalories, setAvgCalories] = useState(0);
-  const [caloriesBurned, setCaloriesBurned] = useState(0);
-  const [avgReadiness, setAvgReadiness] = useState(0);
-  const [greenDaysCount, setGreenDaysCount] = useState(0);
-  const [weightChange, setWeightChange] = useState(0);
-  const [workoutCount, setWorkoutCount] = useState(0);
-  const [calorieChart, setCalorieChart] = useState<{ date: string; eaten: number; burned: number }[]>([]);
-  const [readinessChart, setReadinessChart] = useState<{ date: string; score: number }[]>([]);
-  const [weightChart, setWeightChart] = useState<{ date: string; weight_kg: number }[]>([]);
-  const [macroTotals, setMacroTotals] = useState({ protein: 0, carbs: 0, fat: 0 });
-  const [tdeeTarget, setTdeeTarget] = useState<{ protein: number; carbs: number; fat: number; calories: number } | null>(null);
-  const [sessions, setSessions] = useState<{ date: string; split: string; duration: number; score: number }[]>([]);
+const TOTAL = 6;
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setLoading(false); return; }
+const OnboardingPage = ({ onComplete }: Props) => {
+  const [step, setStep]   = useState(0);
+  const [dir,  setDir]    = useState(1);
 
-        const days = period === 'today' ? 1 : period === '7days' ? 7 : 30;
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days + 1);
-        const startStr = startDate.toISOString().slice(0, 10);
+  const [name,       setName]   = useState('');
+  const [age,        setAge]    = useState(28);
+  const [sex,        setSex]    = useState<Sex>('other');
+  const [height,     setHeight] = useState(170);
+  const [goal,       setGoal]   = useState<FitnessGoal>('general');
+  const [experience, setExp]    = useState<ExperienceLevel>('intermediate');
 
-        const [{ data: profile }, { data: meals }, { data: checkins }, { data: workouts }, { data: weights }] = await Promise.all([
-          supabase.from('user_profiles').select('weight_kg, height_cm, age, sex, activity_level, fitness_goal').eq('id', user.id).maybeSingle(),
-          supabase.from('meal_logs').select('date, calories, protein_g, carbs_g, fat_g, eaten').eq('user_id', user.id).gte('date', startStr).eq('eaten', true),
-          supabase.from('daily_checkins').select('date, readiness_score, status').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
-          supabase.from('workout_sessions').select('date, split, duration_min, readiness_score, completed').eq('user_id', user.id).gte('date', startStr).eq('completed', true),
-          supabase.from('weight_logs').select('date, weight_kg').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
-        ]);
+  const go   = (n: number) => { setDir(n > step ? 1 : -1); setStep(n); };
+  const next = () => go(step + 1);
+  const back = () => go(step - 1);
 
-        // TDEE
-        if (profile) {
-          const targets = calculateCalorieTargets(
-            Number(profile.weight_kg) || 70,
-            (profile as any).height_cm || 170,
-            (profile as any).age || 30,
-            (profile as any).sex || 'other',
-            ((profile as any).activity_level as any) || 'moderate',
-            (profile.fitness_goal as any) || 'general'
-          );
-          setTdeeTarget({ protein: targets.proteinTarget, carbs: targets.carbTarget, fat: targets.fatTarget, calories: targets.calorieTarget });
-        }
+  const finish = () => onComplete({
+    display_name: name.trim() || 'Athlete',
+    age, sex, fitness_goal: goal, experience, height_cm: height,
+  });
 
-        // Meals
-        const totalCal = meals?.reduce((s, m) => s + (m.calories || 0), 0) || 0;
-        setAvgCalories(Math.round(totalCal / Math.max(days, 1)));
-        setMacroTotals({
-          protein: meals?.reduce((s, m) => s + Number(m.protein_g || 0), 0) || 0,
-          carbs: meals?.reduce((s, m) => s + Number(m.carbs_g || 0), 0) || 0,
-          fat: meals?.reduce((s, m) => s + Number(m.fat_g || 0), 0) || 0,
-        });
-
-        // Calorie chart by day
-        const calByDay: Record<string, { eaten: number; burned: number }> = {};
-        meals?.forEach(m => {
-          if (!calByDay[m.date]) calByDay[m.date] = { eaten: 0, burned: 0 };
-          calByDay[m.date].eaten += m.calories || 0;
-        });
-        workouts?.forEach(w => {
-          if (!calByDay[w.date]) calByDay[w.date] = { eaten: 0, burned: 0 };
-          calByDay[w.date].burned += (w.duration_min || 0) * 7;
-        });
-        setCalorieChart(Object.entries(calByDay).sort().map(([date, v]) => ({ date: date.slice(5), ...v })));
-
-        // Workouts
-        const totalBurned = workouts?.reduce((s, w) => s + (w.duration_min || 0) * 7, 0) || 0;
-        setCaloriesBurned(totalBurned);
-        setWorkoutCount(workouts?.length || 0);
-        setSessions(workouts?.map(w => ({
-          date: w.date,
-          split: w.split || '-',
-          duration: w.duration_min || 0,
-          score: w.readiness_score || 0,
-        })) || []);
-
-        // Readiness
-        if (checkins?.length) {
-          const scores = checkins.filter(c => c.readiness_score).map(c => c.readiness_score!);
-          setAvgReadiness(Math.round(scores.reduce((a, b) => a + b, 0) / scores.length));
-          setGreenDaysCount(checkins.filter(c => c.status === 'Green').length);
-          setReadinessChart(checkins.map(c => ({ date: c.date.slice(5), score: c.readiness_score || 0 })));
-        }
-
-        // Weight
-        if (weights?.length) {
-          setWeightChart(weights.map(w => ({ date: w.date.slice(5), weight_kg: Number(w.weight_kg) })));
-          if (weights.length >= 2) {
-            setWeightChange(Number(weights[weights.length - 1].weight_kg) - Number(weights[0].weight_kg));
-          }
-        }
-
-        setLoading(false);
-      } catch (err) {
-        console.error('Failed to load dashboard:', err);
-        setLoading(false);
-      }
-    }
-    load();
-  }, [period]);
-
-  if (loading) return <SkeletonLoader />;
-
-  const netCalories = avgCalories - Math.round(caloriesBurned / (period === 'today' ? 1 : period === '7days' ? 7 : 30));
-  const periodDays = period === 'today' ? 1 : period === '7days' ? 7 : 30;
-
-  const statCards = [
-    { label: 'Avg Calories In', value: `${avgCalories}`, sub: 'kcal/day' },
-    { label: 'Calories Burned', value: `${caloriesBurned}`, sub: 'total kcal' },
-    { label: 'Net Calories', value: `${netCalories}`, sub: 'avg/day' },
-    { label: 'Avg Readiness', value: `${avgReadiness}`, sub: `${greenDaysCount} green days` },
-    { label: 'Weight Change', value: `${weightChange > 0 ? '+' : ''}${weightChange.toFixed(1)} kg`, sub: '' },
-    { label: 'Workouts', value: `${workoutCount}`, sub: 'completed' },
-  ];
-
-  const macroPercent = (consumed: number, target: number) => {
-    if (target === 0) return 0;
-    return Math.round((consumed / (target * periodDays)) * 100);
+  const slide = {
+    enter:  (d: number) => ({ opacity: 0, x: d > 0 ? 48 : -48 }),
+    center: { opacity: 1, x: 0 },
+    exit:   (d: number) => ({ opacity: 0, x: d > 0 ? -48 : 48 }),
   };
 
-  const macroColor = (pct: number) => {
-    if (pct >= 90 && pct <= 110) return 'bg-status-green';
-    if (pct >= 75 && pct < 90) return 'bg-status-yellow';
-    return 'bg-status-red';
+  const progress = ((step + 1) / TOTAL) * 100;
+
+  // Shared option button
+  const Opt = ({
+    active, onClick, icon, label, sub, accentColor,
+  }: {
+    active: boolean; onClick: () => void;
+    icon: string; label: string; sub?: string; accentColor?: string;
+  }) => {
+    const color = accentColor ?? 'hsl(245 100% 70%)';
+    return (
+      <button onClick={onClick} style={{
+        width: '100%', padding: '13px 16px',
+        borderRadius: 12, border: active ? `1px solid ${color}60` : '1px solid #16162a',
+        background: active ? `${color}12` : '#0d0d1f',
+        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12,
+        boxShadow: active ? `0 0 16px ${color}12` : 'none',
+        transition: 'all 0.15s',
+      }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+          background: active ? `${color}20` : '#111125',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 18,
+        }}>{icon}</div>
+        <div style={{ flex: 1, textAlign: 'left' }}>
+          <div style={{ fontFamily: BC, fontWeight: 700, fontSize: 15, letterSpacing: '0.02em', color: active ? '#ffffff' : '#c0c0e0' }}>{label}</div>
+          {sub && <div style={{ fontSize: 12, color: '#404070', marginTop: 1 }}>{sub}</div>}
+        </div>
+        {active && <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />}
+      </button>
+    );
   };
+
+  // Stepper label
+  const StepLabel = ({ n }: { n: number }) => (
+    <p style={{ fontFamily: BC, fontSize: 12, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#404070', marginBottom: 10 }}>
+      STEP {n} OF {TOTAL - 1}
+    </p>
+  );
+
+  // Section heading
+  const H = ({ children }: { children: React.ReactNode }) => (
+    <h2 style={{ fontFamily: BC, fontWeight: 800, fontSize: 'clamp(28px,8vw,42px)', color: '#ffffff', letterSpacing: '0.01em', lineHeight: 0.92, textTransform: 'uppercase', marginBottom: 8 }}>
+      {children}
+    </h2>
+  );
+
+  // Sub text
+  const Sub = ({ children }: { children: React.ReactNode }) => (
+    <p style={{ fontSize: 14, color: '#404070', marginBottom: 28, lineHeight: 1.5 }}>{children}</p>
+  );
+
+  // Spinner input (age/height)
+  const Spinner = ({ label, val, min, max, color, unit, onChange }: {
+    label: string; val: number; min: number; max: number;
+    color: string; unit: string; onChange: (v: number) => void;
+  }) => (
+    <div style={{ background: '#0d0d1f', border: '1px solid #16162a', borderRadius: 12, padding: '14px 16px' }}>
+      <p style={{ fontFamily: BC, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#404070', marginBottom: 10 }}>{label}</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <button onClick={() => onChange(Math.max(min, val - 1))}
+          style={{ width: 36, height: 36, borderRadius: 8, background: '#111125', border: '1px solid #16162a', color: color, fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>−</button>
+        <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 30, color, letterSpacing: '-0.02em' }}>
+          {val}<span style={{ fontSize: 14, color: '#404070', fontFamily: DM, fontWeight: 400 }}> {unit}</span>
+        </span>
+        <button onClick={() => onChange(Math.min(max, val + 1))}
+          style={{ width: 36, height: 36, borderRadius: 8, background: '#111125', border: '1px solid #16162a', color: color, fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>+</button>
+      </div>
+      <input type="range" min={min} max={max} value={val} onChange={e => onChange(Number(e.target.value))}
+        style={{ width: '100%', accentColor: color }} />
+    </div>
+  );
 
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-display text-2xl">{t('dashboard')}</h1>
-        <div className="flex gap-1">
-          {(['today', '7days', '30days'] as Period[]).map(p => (
-            <Button key={p} variant={period === p ? 'default' : 'outline'} size="sm" onClick={() => setPeriod(p)} className="text-xs">
-              {p === 'today' ? 'Today' : p === '7days' ? '7 Days' : '30 Days'}
-            </Button>
-          ))}
-        </div>
+    <div style={{ minHeight: '100dvh', background: '#06060c', display: 'flex', flexDirection: 'column', fontFamily: DM }}>
+
+      {/* Progress bar */}
+      <div style={{ height: 3, background: '#111125', position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50 }}>
+        <motion.div style={{ height: 3, background: 'linear-gradient(90deg, hsl(245 100% 70%), hsl(77 100% 58%))' }}
+          animate={{ width: `${progress}%` }} transition={{ duration: 0.4, ease: 'easeOut' }} />
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {statCards.map((s, i) => (
-          <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="bg-card rounded-xl p-4 card-shadow text-center">
-            <div className="text-[10px] text-muted-foreground uppercase">{s.label}</div>
-            <div className="font-mono font-bold text-lg mt-1">{s.value}</div>
-            {s.sub && <div className="text-[10px] text-muted-foreground">{s.sub}</div>}
+      {/* Header */}
+      <div style={{ padding: '22px 24px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: 480, margin: '0 auto', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ fontSize: 18 }}>⚡</span>
+          <span style={{ fontFamily: BC, fontWeight: 800, fontSize: 15, color: '#ffffff', letterSpacing: '0.04em', textTransform: 'uppercase' }}>FitDecide</span>
+        </div>
+        <span style={{ fontFamily: MONO, fontSize: 11, color: '#2a2a50' }}>{step + 1} / {TOTAL}</span>
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '28px 24px 16px', maxWidth: 480, margin: '0 auto', width: '100%' }}>
+        <AnimatePresence mode="wait" custom={dir}>
+          <motion.div key={step} custom={dir} variants={slide}
+            initial="enter" animate="center" exit="exit"
+            transition={{ duration: 0.22, ease: 'easeOut' }}>
+
+            {/* ── STEP 0: WELCOME ── */}
+            {step === 0 && (
+              <div>
+                <p style={{ fontFamily: BC, fontSize: 12, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#404070', marginBottom: 14 }}>WELCOME</p>
+                <h1 style={{ fontFamily: BC, fontWeight: 800, fontSize: 'clamp(38px,11vw,58px)', color: '#ffffff', letterSpacing: '0.01em', lineHeight: 0.88, textTransform: 'uppercase', marginBottom: 18 }}>
+                  KNOW BEFORE<br />
+                  <span style={{ color: 'hsl(245 100% 72%)' }}>YOU TRAIN</span>
+                </h1>
+                <p style={{ fontSize: 15, color: '#606090', lineHeight: 1.65, marginBottom: 32 }}>
+                  Every day your body sends signals — sleep, heart rate, soreness. FitDecide reads them and tells you exactly how hard to train today.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    { icon: '⚡', text: 'Daily readiness score in 60 seconds' },
+                    { icon: '🧬', text: 'Longevity tracking — fitness age & recovery debt' },
+                    { icon: '🤖', text: 'AI coach that knows your body data' },
+                  ].map(({ icon, text }) => (
+                    <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#0d0d1f', borderRadius: 10, border: '1px solid #16162a' }}>
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+                      <span style={{ fontSize: 13, color: '#c0c0e0' }}>{text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 1: NAME ── */}
+            {step === 1 && (
+              <div>
+                <StepLabel n={1} />
+                <H>WHAT'S YOUR<br />NAME?</H>
+                <Sub>We'll personalise your experience.</Sub>
+                <input
+                  type="text" value={name} onChange={e => setName(e.target.value)}
+                  placeholder="Your name or nickname" autoFocus
+                  style={{
+                    width: '100%', padding: '16px 18px',
+                    background: '#0d0d1f', border: '1px solid rgba(108,99,255,0.4)',
+                    borderRadius: 12, outline: 'none',
+                    fontFamily: BC, fontWeight: 700, fontSize: 20,
+                    color: '#ffffff', letterSpacing: '0.02em',
+                  }}
+                  onKeyDown={e => e.key === 'Enter' && name.trim() && next()}
+                />
+                {name.trim() && (
+                  <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                    style={{ fontFamily: BC, fontSize: 14, color: 'hsl(77 100% 58%)', marginTop: 10, letterSpacing: '0.04em' }}>
+                    Let's go, {name.trim().toUpperCase()} ⚡
+                  </motion.p>
+                )}
+              </div>
+            )}
+
+            {/* ── STEP 2: AGE + HEIGHT ── */}
+            {step === 2 && (
+              <div>
+                <StepLabel n={2} />
+                <H>YOUR BODY<br />BASICS</H>
+                <Sub>Used to calculate TDEE and longevity metrics.</Sub>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <Spinner label="Age" val={age} min={16} max={80} color="hsl(245 100% 70%)" unit="yrs" onChange={setAge} />
+                  <Spinner label="Height" val={height} min={140} max={220} color="hsl(77 100% 58%)" unit="cm" onChange={setHeight} />
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 3: SEX ── */}
+            {step === 3 && (
+              <div>
+                <StepLabel n={3} />
+                <H>BIOLOGICAL<br />SEX</H>
+                <Sub>Used to calculate accurate BMR and calorie targets.</Sub>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {([
+                    { val: 'male',   icon: '♂', label: 'Male',   sub: 'Higher BMR baseline' },
+                    { val: 'female', icon: '♀', label: 'Female', sub: 'Adjusted hormonal factors' },
+                    { val: 'other',  icon: '◎', label: 'Prefer not to say', sub: 'Average estimate used' },
+                  ] as { val: Sex; icon: string; label: string; sub: string }[]).map(o => (
+                    <Opt key={o.val} active={sex === o.val} onClick={() => setSex(o.val)}
+                      icon={o.icon} label={o.label} sub={o.sub} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 4: GOAL ── */}
+            {step === 4 && (
+              <div>
+                <StepLabel n={4} />
+                <H>PRIMARY<br />GOAL</H>
+                <Sub>Shapes your calorie targets and training style.</Sub>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {([
+                    { val: 'muscle',   icon: '💪', label: 'Build Muscle',    sub: 'Surplus calories · progressive overload', color: 'hsl(245 100% 70%)' },
+                    { val: 'fat_loss', icon: '🔥', label: 'Lose Fat',        sub: 'Calorie deficit · preserve lean mass',    color: 'hsl(2 84% 60%)' },
+                    { val: 'strength', icon: '🏋️', label: 'Get Stronger',   sub: 'Max strength · low rep heavy training',   color: 'hsl(38 88% 58%)' },
+                    { val: 'general',  icon: '⚡', label: 'General Fitness', sub: 'Balanced performance & health',           color: 'hsl(77 100% 58%)' },
+                  ] as { val: FitnessGoal; icon: string; label: string; sub: string; color: string }[]).map(o => (
+                    <Opt key={o.val} active={goal === o.val} onClick={() => setGoal(o.val)}
+                      icon={o.icon} label={o.label} sub={o.sub} accentColor={o.color} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 5: EXPERIENCE ── */}
+            {step === 5 && (
+              <div>
+                <StepLabel n={5} />
+                <H>TRAINING<br />EXPERIENCE</H>
+                <Sub>Sets exercise selection and volume.</Sub>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+                  {([
+                    { val: 'beginner',     icon: '🌱', label: 'Beginner',     sub: 'Under 1 year · learning the basics' },
+                    { val: 'intermediate', icon: '⚡', label: 'Intermediate', sub: '1–3 years · comfortable with major lifts' },
+                    { val: 'advanced',     icon: '🏆', label: 'Advanced',     sub: '3+ years · optimising performance' },
+                  ] as { val: ExperienceLevel; icon: string; label: string; sub: string }[]).map(o => (
+                    <Opt key={o.val} active={experience === o.val} onClick={() => setExp(o.val)}
+                      icon={o.icon} label={o.label} sub={o.sub} />
+                  ))}
+                </div>
+                {/* Profile summary */}
+                <div style={{ background: '#0d0d1f', border: '1px solid rgba(108,99,255,0.2)', borderRadius: 12, padding: '12px 16px' }}>
+                  <p style={{ fontFamily: BC, fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#2a2a50', marginBottom: 10 }}>YOUR PROFILE</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {[
+                      { label: 'Name',    val: (name.trim() || 'Athlete').toUpperCase() },
+                      { label: 'Age',     val: `${age} YRS` },
+                      { label: 'Height',  val: `${height} CM` },
+                      { label: 'Goal',    val: goal.replace('_', ' ').toUpperCase() },
+                    ].map(({ label, val }) => (
+                      <div key={label}>
+                        <div style={{ fontFamily: BC, fontSize: 10, color: '#2a2a50', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</div>
+                        <div style={{ fontFamily: BC, fontWeight: 700, fontSize: 13, color: '#e8e8ff', marginTop: 2, letterSpacing: '0.02em' }}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
           </motion.div>
-        ))}
+        </AnimatePresence>
       </div>
 
-      {/* Calorie Balance */}
-      {calorieChart.length > 0 && (
-        <div className="bg-card rounded-xl p-5 card-shadow">
-          <h3 className="font-semibold mb-4">Calorie Balance</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={calorieChart}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-              <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-              <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))' }} />
-              <Bar dataKey="eaten" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Eaten" />
-              <Bar dataKey="burned" fill="hsl(var(--status-green))" radius={[4, 4, 0, 0]} name="Burned" />
-              {tdeeTarget && (
-                <ReferenceLine y={tdeeTarget.calories} stroke="hsl(var(--accent))" strokeDasharray="5 5" label={{ value: `Target: ${tdeeTarget.calories}`, fill: 'hsl(var(--accent))', fontSize: 10 }} />
-              )}
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Weight Trend (only for 7 or 30 days) */}
-      {period !== 'today' && weightChart.length > 1 && (
-        <div className="bg-card rounded-xl p-5 card-shadow">
-          <h3 className="font-semibold mb-4">Weight Trend</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={weightChart}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-              <YAxis domain={['auto', 'auto']} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-              <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))' }} />
-              <Line type="monotone" dataKey="weight_kg" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 2 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Readiness Trend */}
-      {readinessChart.length > 0 && (
-        <div className="bg-card rounded-xl p-5 card-shadow">
-          <h3 className="font-semibold mb-4">Readiness Trend</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={readinessChart}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-              <YAxis domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-              <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))' }} />
-              <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-              <ReferenceLine y={70} stroke="hsl(var(--status-green))" strokeDasharray="3 3" />
-              <ReferenceLine y={45} stroke="hsl(var(--status-yellow))" strokeDasharray="3 3" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Workout Sessions */}
-      {sessions.length > 0 && (
-        <div className="bg-card rounded-xl p-5 card-shadow">
-          <h3 className="font-semibold mb-4">Workout Sessions</h3>
-          <div className="space-y-0 divide-y divide-border/50">
-            {sessions.map((s, i) => (
-              <div key={i} className="flex items-center justify-between py-3">
-                <div>
-                  <div className="text-sm font-medium capitalize">{s.split.replace(/_/g, ' ')}</div>
-                  <div className="text-xs text-muted-foreground">{s.date}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-mono">{s.duration} min</div>
-                  {s.score > 0 && <div className="text-xs text-muted-foreground">Score: {s.score}</div>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Macro Progress */}
-      {tdeeTarget && (
-        <div className="bg-card rounded-xl p-5 card-shadow space-y-4">
-          <h3 className="font-semibold">Macro Progress ({period === 'today' ? 'Today' : period === '7days' ? '7 Days' : '30 Days'})</h3>
-          {[
-            { label: 'Protein', consumed: macroTotals.protein, target: tdeeTarget.protein },
-            { label: 'Carbs', consumed: macroTotals.carbs, target: tdeeTarget.carbs },
-            { label: 'Fat', consumed: macroTotals.fat, target: tdeeTarget.fat },
-          ].map(m => {
-            const pct = macroPercent(m.consumed, m.target);
-            return (
-              <div key={m.label} className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">{m.label}</span>
-                  <span className="font-mono">{Math.round(m.consumed)}g / {m.target * periodDays}g ({pct}%)</span>
-                </div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all ${macroColor(pct)}`} style={{ width: `${Math.min(100, pct)}%` }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* Footer buttons */}
+      <div style={{
+        padding: '12px 24px',
+        paddingBottom: 'max(24px, env(safe-area-inset-bottom))',
+        maxWidth: 480, margin: '0 auto', width: '100%',
+        display: 'flex', gap: 10,
+      }}>
+        {step > 0 && (
+          <button onClick={back} style={{
+            flex: 1, padding: '14px', borderRadius: 12,
+            border: '1px solid #16162a', background: '#0d0d1f',
+            color: '#404070', fontFamily: BC, fontWeight: 700,
+            fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer',
+          }}>← BACK</button>
+        )}
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={step === TOTAL - 1 ? finish : next}
+          disabled={step === 1 && !name.trim()}
+          style={{
+            flex: step > 0 ? 2 : 1, padding: '16px', borderRadius: 12, border: 'none',
+            background: step === TOTAL - 1 ? 'hsl(77 100% 58%)' : 'hsl(245 100% 70%)',
+            color: step === TOTAL - 1 ? 'hsl(240 60% 3%)' : '#ffffff',
+            fontFamily: BC, fontWeight: 800, fontSize: 15,
+            letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+            opacity: step === 1 && !name.trim() ? 0.35 : 1,
+            boxShadow: step === TOTAL - 1
+              ? '0 4px 24px rgba(186,255,41,0.3)'
+              : '0 4px 20px rgba(108,99,255,0.22)',
+          }}
+        >
+          {step === 0 ? "LET'S GO →" : step === TOTAL - 1 ? '⚡ START FITDECIDE' : 'CONTINUE →'}
+        </motion.button>
+      </div>
     </div>
   );
 };
 
-export default DashboardPage;
+export default OnboardingPage;
