@@ -648,37 +648,43 @@ const LongevityPage = () => {
 
               {/* Gauge + level */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
-                {/* Semicircle gauge using SVG path — reliable cross-browser */}
-                <div style={{ position: 'relative', flexShrink: 0, width: 104, height: 60 }}>
-                  <svg width="104" height="60" viewBox="0 0 104 60">
-                    {/* Track — grey semicircle */}
-                    <path
-                      d="M 8 52 A 44 44 0 0 1 96 52"
-                      fill="none" stroke="#111125" strokeWidth="9" strokeLinecap="round"
+                {/* Semicircle gauge — full circle clipped to top half */}
+                <div style={{ position: 'relative', flexShrink: 0, width: 108, height: 62 }}>
+                  <svg width="108" height="62" viewBox="0 0 108 62" style={{ overflow: 'visible' }}>
+                    <defs>
+                      {/* Clip to top semicircle only */}
+                      <clipPath id="semi-clip">
+                        <rect x="0" y="0" width="108" height="54" />
+                      </clipPath>
+                    </defs>
+
+                    {/* Track — full circle, clipped to semicircle */}
+                    <circle cx="54" cy="54" r="40"
+                      fill="none" stroke="#111125" strokeWidth="10"
+                      clipPath="url(#semi-clip)"
                     />
-                    {/* Filled — colored portion based on score */}
-                    {recovDebt.score > 0 && (() => {
-                      // Semicircle from left (180°) to right (0°) = score% of 180°
-                      const angle = Math.PI - (recovDebt.score / 100) * Math.PI;
-                      const x = 52 + 44 * Math.cos(angle);
-                      const y = 52 - 44 * Math.sin(angle);
-                      const largeArc = recovDebt.score > 50 ? 1 : 0;
-                      return (
-                        <motion.path
-                          d={`M 8 52 A 44 44 0 ${largeArc} 1 ${x.toFixed(2)} ${y.toFixed(2)}`}
-                          fill="none" stroke={dc.color} strokeWidth="9" strokeLinecap="round"
-                          initial={{ pathLength: 0 }}
-                          animate={{ pathLength: 1 }}
-                          transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
-                        />
-                      );
-                    })()}
-                    {/* Score number */}
-                    <text x="52" y="46" textAnchor="middle" fill="#ffffff"
-                      style={{ fontFamily: MONO, fontWeight: 700, fontSize: 22 }}>
+
+                    {/* Filled — rotates from left to right based on score */}
+                    <motion.circle cx="54" cy="54" r="40"
+                      fill="none"
+                      stroke={dc.color}
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 40}`}
+                      strokeDashoffset={`${2 * Math.PI * 40 * (1 - (recovDebt.score / 100) * 0.5)}`}
+                      transform="rotate(-180 54 54)"
+                      clipPath="url(#semi-clip)"
+                      initial={{ strokeDashoffset: `${2 * Math.PI * 40}` }}
+                      animate={{ strokeDashoffset: `${2 * Math.PI * 40 * (1 - (recovDebt.score / 100) * 0.5)}` }}
+                      transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
+                    />
+
+                    {/* Score */}
+                    <text x="54" y="46" textAnchor="middle" fill="#ffffff"
+                      style={{ fontFamily: MONO, fontWeight: 700, fontSize: 20 }}>
                       {recovDebt.score}
                     </text>
-                    <text x="52" y="57" textAnchor="middle" fill="#2a2a50" fontSize="8" letterSpacing="1">
+                    <text x="54" y="57" textAnchor="middle" fill="#2a2a50" fontSize="8" letterSpacing="1">
                       / 100
                     </text>
                   </svg>
