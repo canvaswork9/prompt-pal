@@ -24,13 +24,13 @@ const XPBar = ({ totalXP, level, streakDays, tierEmoji, tierName, compact }: XPB
   }
 
   return (
-    <div className="bg-card rounded-xl p-4 card-shadow space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <span className="text-2xl">{tierEmoji}</span>
-          <div>
-            <div className="font-semibold text-sm tracking-tight">Level {level} · {tierName}</div>
-            <div className="text-label mt-0.5">{totalXP.toLocaleString()} XP</div>
+    <div className="bg-card rounded-xl p-3 sm:p-4 card-shadow">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xl leading-none flex-shrink-0">⚡</span>
+          <div className="min-w-0">
+            <div className="text-display-sm truncate">LV.{level} {tierName.toUpperCase()}</div>
+            <div className="text-label mt-0.5">{totalXP.toLocaleString()} XP · {progress.needed - progress.current} TO NEXT</div>
           </div>
         </div>
         {streakDays > 0 && (
@@ -38,26 +38,24 @@ const XPBar = ({ totalXP, level, streakDays, tierEmoji, tierName, compact }: XPB
             initial={{ scale: 0.8 }}
             animate={{ scale: [1, 1.08, 1] }}
             transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 2.5 }}
-            className="reward-pill"
+            className="reward-pill flex-shrink-0 ml-2"
           >
             🔥 {streakDays}
           </motion.div>
         )}
       </div>
-      <div className="space-y-1.5">
-        <div className="flex justify-between text-label">
-          <span>{progress.current} / {progress.needed} XP</span>
-          <span>Level {level + 1}</span>
-        </div>
-        <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-          <motion.div
-            className="h-full rounded-full"
-            style={{ background: 'linear-gradient(90deg, hsl(245 100% 70%), hsl(77 100% 58%))' }}
-            initial={{ width: 0 }}
-            animate={{ width: `${progress.pct}%` }}
-            transition={{ duration: 0.9, ease: 'easeOut' }}
-          />
-        </div>
+      <div className="flex justify-between text-label mb-1.5">
+        <span>{progress.current} / {progress.needed} XP</span>
+        <span>LEVEL {level + 1}</span>
+      </div>
+      <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+        <motion.div
+          className="h-full rounded-full"
+          style={{ background: 'linear-gradient(90deg, hsl(245 100% 70%), hsl(77 100% 58%))' }}
+          initial={{ width: 0 }}
+          animate={{ width: `${progress.pct}%` }}
+          transition={{ duration: 0.9, ease: 'easeOut' }}
+        />
       </div>
     </div>
   );
