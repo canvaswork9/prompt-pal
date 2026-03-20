@@ -260,20 +260,20 @@ const MealPage = () => {
       <div className="bg-card rounded-xl p-5 card-shadow">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
           <div>
-            <div className="text-xs text-muted-foreground uppercase">Calories</div>
-            <div className="font-mono font-bold text-base sm:text-lg">{totals.calories}<span className="text-xs text-muted-foreground font-normal">/{macros.calories}</span></div>
+            <div className="text-label">Calories</div>
+            <div className="text-data text-base sm:text-xl">{totals.calories}<span className="text-xs text-muted-foreground font-normal">/{macros.calories}</span></div>
           </div>
           <div>
-            <div className="text-xs text-muted-foreground uppercase">Protein</div>
-            <div className="font-mono font-bold text-base sm:text-lg text-status-green">{totals.protein}<span className="text-xs text-muted-foreground font-normal">/{macros.protein}g</span></div>
+            <div className="text-label">Protein</div>
+            <div className="text-data text-base sm:text-xl text-status-green">{totals.protein}<span className="text-xs text-muted-foreground font-normal">/{macros.protein}g</span></div>
           </div>
           <div>
-            <div className="text-xs text-muted-foreground uppercase">Carbs</div>
-            <div className="font-mono font-bold text-base sm:text-lg text-primary">{totals.carbs}<span className="text-xs text-muted-foreground font-normal">/{macros.carbs}g</span></div>
+            <div className="text-label">Carbs</div>
+            <div className="text-data text-base sm:text-xl text-primary">{totals.carbs}<span className="text-xs text-muted-foreground font-normal">/{macros.carbs}g</span></div>
           </div>
           <div>
-            <div className="text-xs text-muted-foreground uppercase">Fat</div>
-            <div className="font-mono font-bold text-base sm:text-lg text-accent">{totals.fat}<span className="text-xs text-muted-foreground font-normal">/{macros.fat}g</span></div>
+            <div className="text-label">Fat</div>
+            <div className="text-data text-base sm:text-xl text-accent">{totals.fat}<span className="text-xs text-muted-foreground font-normal">/{macros.fat}g</span></div>
           </div>
         </div>
 
@@ -289,11 +289,11 @@ const MealPage = () => {
         <div className="mt-4 space-y-2">
           <div className="flex justify-between text-xs text-muted-foreground"><span>Calories</span><span>{totals.calories} / {macros.calories} kcal</span></div>
           <div className="h-2 bg-secondary rounded-full overflow-hidden">
-            <motion.div className="h-full rounded-full" style={{ background: 'linear-gradient(90deg, hsl(245 100% 70%), hsl(77 100% 58%))' }} initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.calories / macros.calories) * 100)}%` }} />
+            <motion.div className="h-full bg-primary rounded-full" initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.calories / macros.calories) * 100)}%` }} />
           </div>
           <div className="flex justify-between text-xs text-muted-foreground"><span>Protein</span><span>{totals.protein} / {macros.protein}g</span></div>
           <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-            <motion.div className="h-full bg-accent rounded-full" initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.protein / macros.protein) * 100)}%` }} />
+            <motion.div className="h-full bg-status-green rounded-full" initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.protein / macros.protein) * 100)}%` }} />
           </div>
         </div>
       </div>
@@ -314,7 +314,7 @@ const MealPage = () => {
             )}
             <div className="flex items-center justify-between mb-2 pr-6">
               <div><span className="font-semibold text-sm">{slot.icon} {slot.label}</span><span className="text-xs text-muted-foreground ml-2">({slot.time})</span></div>
-              <span className="font-mono text-sm">{meal.kcal} kcal</span>
+              <span className="text-data-sm">{meal.kcal} kcal</span>
             </div>
             <div className={`text-sm mb-3 ${isEaten ? 'text-muted-foreground' : ''}`}>{lang === 'th' ? meal.name_th : (meal.name_en || meal.name_th)}</div>
             <div className="flex gap-2 mb-3">
