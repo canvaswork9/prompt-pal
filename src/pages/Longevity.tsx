@@ -402,10 +402,20 @@ const LongevityPage = () => {
 
       if (error) throw error;
 
-      // ai-coach returns { message: string } or choices array
-      const text = data?.message ?? data?.choices?.[0]?.message?.content ?? '';
-      if (text) setCoachMsg(text);
-      else setCoachMsg('Unable to generate coaching plan. Please try again.');
+      // Try all known response shapes from ai-coach
+      const text =
+        data?.message ??
+        data?.choices?.[0]?.message?.content ??
+        data?.content?.[0]?.text ??
+        data?.response ??
+        '';
+
+      if (text) {
+        setCoachMsg(text);
+      } else {
+        console.warn('Longevity coach: unexpected response shape', JSON.stringify(data).slice(0, 200));
+        setCoachMsg('Coaching plan ready. Check back after a few more check-ins for more personalized advice.');
+      }
     } catch (err) {
       console.error('Longevity coach error:', err);
       setCoachMsg('');
@@ -627,12 +637,6 @@ const LongevityPage = () => {
         {/* ── RECOVERY DEBT ── */}
         {score.totalDays >= 3 && (() => {
           const dc = DEBT_CONFIG[recovDebt.level];
-          const R_GAUGE = 40;
-          const CIRC_GAUGE = 2 * Math.PI * R_GAUGE;
-          // Arc is semicircle: 180° = half circumference
-          const arcLen  = CIRC_GAUGE * 0.6;  // 60% of circle = 216° arc
-          const filled  = arcLen * (recovDebt.score / 100);
-          const empty   = arcLen - filled;
 
           return (
             <motion.div
@@ -644,39 +648,42 @@ const LongevityPage = () => {
 
               {/* Gauge + level */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
-                {/* Arc gauge */}
-                <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <svg width="100" height="72" viewBox="0 0 100 72">
-                    {/* Track arc */}
-                    <circle cx="50" cy="54" r={R_GAUGE} fill="none"
-                      stroke="#111125" strokeWidth="8"
-                      strokeDasharray={`${arcLen} ${CIRC_GAUGE}`}
-                      strokeLinecap="round"
-                      transform="rotate(162 50 54)"
+                {/* Semicircle gauge using SVG path — reliable cross-browser */}
+                <div style={{ position: 'relative', flexShrink: 0, width: 104, height: 60 }}>
+                  <svg width="104" height="60" viewBox="0 0 104 60">
+                    {/* Track — grey semicircle */}
+                    <path
+                      d="M 8 52 A 44 44 0 0 1 96 52"
+                      fill="none" stroke="#111125" strokeWidth="9" strokeLinecap="round"
                     />
-                    {/* Filled arc */}
-                    <motion.circle cx="50" cy="54" r={R_GAUGE} fill="none"
-                      stroke={dc.color} strokeWidth="8"
-                      strokeDasharray={`${filled} ${CIRC_GAUGE}`}
-                      strokeLinecap="round"
-                      transform="rotate(162 50 54)"
-                      initial={{ strokeDasharray: `0 ${CIRC_GAUGE}` }}
-                      animate={{ strokeDasharray: `${filled} ${CIRC_GAUGE}` }}
-                      transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
-                    />
-                    {/* Score label */}
-                    <text x="50" y="52" textAnchor="middle" fill="#ffffff"
-                      style={{ fontFamily: MONO, fontWeight: 700, fontSize: 20 }}>
+                    {/* Filled — colored portion based on score */}
+                    {recovDebt.score > 0 && (() => {
+                      // Semicircle from left (180°) to right (0°) = score% of 180°
+                      const angle = Math.PI - (recovDebt.score / 100) * Math.PI;
+                      const x = 52 + 44 * Math.cos(angle);
+                      const y = 52 - 44 * Math.sin(angle);
+                      const largeArc = recovDebt.score > 50 ? 1 : 0;
+                      return (
+                        <motion.path
+                          d={`M 8 52 A 44 44 0 ${largeArc} 1 ${x.toFixed(2)} ${y.toFixed(2)}`}
+                          fill="none" stroke={dc.color} strokeWidth="9" strokeLinecap="round"
+                          initial={{ pathLength: 0 }}
+                          animate={{ pathLength: 1 }}
+                          transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
+                        />
+                      );
+                    })()}
+                    {/* Score number */}
+                    <text x="52" y="46" textAnchor="middle" fill="#ffffff"
+                      style={{ fontFamily: MONO, fontWeight: 700, fontSize: 22 }}>
                       {recovDebt.score}
                     </text>
-                    <text x="50" y="64" textAnchor="middle" fill="#2a2a50"
-                      style={{ fontFamily: BC, fontSize: 7, letterSpacing: 1 }}>
+                    <text x="52" y="57" textAnchor="middle" fill="#2a2a50" fontSize="8" letterSpacing="1">
                       / 100
                     </text>
                   </svg>
-                  {/* Min/Max labels */}
-                  <span style={{ position: 'absolute', left: 4, bottom: 2, fontFamily: BC, fontSize: 9, color: '#2a2a50' }}>0</span>
-                  <span style={{ position: 'absolute', right: 4, bottom: 2, fontFamily: BC, fontSize: 9, color: '#2a2a50' }}>100</span>
+                  <span style={{ position: 'absolute', left: 2, bottom: 0, fontFamily: BC, fontSize: 10, color: '#2a2a50' }}>0</span>
+                  <span style={{ position: 'absolute', right: 2, bottom: 0, fontFamily: BC, fontSize: 10, color: '#2a2a50' }}>100</span>
                 </div>
 
                 {/* Level + recommendation */}
@@ -696,32 +703,46 @@ const LongevityPage = () => {
               {recovDebt.trend.length > 5 && (() => {
                 const vals = recovDebt.trend.map(t => t.debt);
                 const max  = Math.max(...vals, 1);
-                const W = 240, H = 36;
+                const W = 280, H = 52;
                 const pts = vals.map((v, i) => {
                   const x = (i / (vals.length - 1)) * W;
-                  const y = H - (v / max) * H;
+                  const y = H - (v / max) * (H - 4);
                   return `${x},${y}`;
                 }).join(' ');
                 return (
                   <div style={{ borderTop: '1px solid #16162a', paddingTop: 12, marginBottom: 12 }}>
-                    <p style={{ fontFamily: BC, fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#2a2a50', marginBottom: 7 }}>
+                    <p style={{ fontFamily: BC, fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#2a2a50', marginBottom: 8 }}>
                       30-DAY TREND
                     </p>
-                    <svg width="100%" height={H + 4} viewBox={`0 0 ${W} ${H + 4}`} preserveAspectRatio="none">
-                      {/* Zero line */}
-                      <line x1="0" y1={H} x2={W} y2={H} stroke="#111125" strokeWidth="1" />
-                      {/* Debt line */}
-                      <polyline points={pts} fill="none" stroke={dc.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <svg width="100%" height={H + 8} viewBox={`0 0 ${W} ${H + 8}`} preserveAspectRatio="none"
+                      style={{ display: 'block' }}>
+                      {/* Grid lines */}
+                      <line x1="0" y1={H * 0.5} x2={W} y2={H * 0.5} stroke="#0d0d1f" strokeWidth="1" strokeDasharray="4 4" />
+                      {/* Zero baseline */}
+                      <line x1="0" y1={H} x2={W} y2={H} stroke="#16162a" strokeWidth="1" />
+                      {/* Fill area under line */}
+                      <polyline
+                        points={`0,${H} ${pts} ${W},${H}`}
+                        fill={`${dc.color}15`} stroke="none"
+                      />
+                      {/* Main line */}
+                      <polyline points={pts} fill="none" stroke={dc.color} strokeWidth="2.5"
+                        strokeLinecap="round" strokeLinejoin="round" />
                       {/* Today dot */}
                       {(() => {
                         const last = vals[vals.length - 1];
-                        const y = H - (last / max) * H;
-                        return <circle cx={W} cy={y} r="3" fill={dc.color} />;
+                        const y = H - (last / max) * (H - 4);
+                        return (
+                          <>
+                            <circle cx={W} cy={y} r="5" fill={dc.color} opacity="0.25" />
+                            <circle cx={W} cy={y} r="3" fill={dc.color} />
+                          </>
+                        );
                       })()}
                     </svg>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-                      <span style={{ fontFamily: BC, fontSize: 10, color: '#2a2a50' }}>30 days ago</span>
-                      <span style={{ fontFamily: BC, fontSize: 10, color: '#2a2a50' }}>Today</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                      <span style={{ fontFamily: BC, fontSize: 11, color: '#2a2a50' }}>30 days ago</span>
+                      <span style={{ fontFamily: BC, fontSize: 11, color: '#2a2a50' }}>Today</span>
                     </div>
                   </div>
                 );
@@ -767,12 +788,37 @@ const LongevityPage = () => {
           style={{ background: '#0d0d1f', border: '1px solid #16162a' }}
         >
           <p style={SEC_LABEL}>90-DAY READINESS MAP</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-            {days.map((d, i) => (
-              <div key={i} title={`${d.date}: ${d.status ?? 'No data'}`}
-                style={{ width: 8, height: 8, borderRadius: 2, background: DOT_COLOR[d.status ?? 'null'], cursor: 'default' }} />
-            ))}
-          </div>
+          {/* Find first day with data */}
+          {(() => {
+            const firstDataIdx = days.findIndex(d => d.status !== null);
+            const daysWithData = days.filter(d => d.status !== null).length;
+            return (
+              <>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, position: 'relative' }}>
+                  {days.map((d, i) => (
+                    <div key={i}
+                      title={d.status ? `${d.date}: ${d.status}` : `${d.date}: No check-in`}
+                      style={{
+                        width: 8, height: 8, borderRadius: 2,
+                        background: DOT_COLOR[d.status ?? 'null'],
+                        cursor: 'default',
+                        opacity: d.status === null ? 0.25 : 1,
+                      }}
+                    />
+                  ))}
+                </div>
+                {/* Data start label */}
+                {firstDataIdx > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '5px 10px', background: '#07070f', borderRadius: 7, border: '1px solid #16162a' }}>
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'hsl(245 100% 70%)', flexShrink: 0 }} />
+                    <span style={{ fontFamily: BC, fontSize: 11, color: '#404070', letterSpacing: '0.04em' }}>
+                      Tracking started {new Date(days[firstDataIdx].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {daysWithData} days logged
+                    </span>
+                  </div>
+                )}
+              </>
+            );
+          })()}
           {/* Legend */}
           <div style={{ display: 'flex', gap: 14, marginTop: 10, flexWrap: 'wrap' }}>
             {([['Green', 'hsl(77 100% 58%)'], ['Yellow', 'hsl(38 88% 58%)'], ['Red', 'hsl(2 84% 60%)'], ['No data', '#1e1e3a']] as [string, string][]).map(([label, color]) => (
