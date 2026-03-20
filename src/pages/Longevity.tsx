@@ -291,6 +291,8 @@ function calcBioAge(score: LongevityScore, chronAge: number | null): BioAge {
 
   return { bioAge, chronAge, delta, label, hrAdj, sleepAdj, greenAdj, trainAdj, hasAge: true };
 }
+
+function generateInsights(score: LongevityScore): Insight[] {
   const ins: Insight[] = [];
   if (score.greenTrend === 'improving')
     ins.push({ type: 'positive', text: `Green day rate improving — momentum is building. Keep this consistency going.` });
