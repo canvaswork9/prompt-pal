@@ -257,16 +257,24 @@ const LongevityPage = () => {
     setCoachLoading(true);
     try {
       const prompt = `My 90-day longevity data: Score ${sc.total}/100 (${sc.grade}), Green days: ${sc.greenRate}%, Avg sleep: ${sc.avgSleep}h, Avg resting HR: ${sc.avgHR}bpm, Training: ${sc.workoutsPerWeek}/week, Sleep trend: ${sc.sleepTrend}, HR trend: ${sc.hrTrend}. Give me 3 specific, actionable recommendations to improve my longevity score over the next 30 days. Be direct and specific, no generic advice. Max 120 words.`;
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch('/functions/v1/ai-coach', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], userId: user.id }),
+
+      const { data, error } = await supabase.functions.invoke('ai-coach', {
+        body: {
+          messages: [{ role: 'user', content: prompt }],
+          userId: user.id,
+        },
       });
-      const data = await res.json();
-      const text = data?.choices?.[0]?.message?.content ?? data?.message ?? '';
+
+      if (error) throw error;
+
+      // ai-coach returns { message: string } or choices array
+      const text = data?.message ?? data?.choices?.[0]?.message?.content ?? '';
       if (text) setCoachMsg(text);
-    } catch { setCoachMsg(''); }
+      else setCoachMsg('Unable to generate coaching plan. Please try again.');
+    } catch (err) {
+      console.error('Longevity coach error:', err);
+      setCoachMsg('');
+    }
     setCoachLoading(false);
   }, [user]);
 
