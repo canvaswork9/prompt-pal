@@ -5,10 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 const mainNavItems = [
-  { path: '/app',      icon: '⚡', labelKey: 'checkin'  as const },
-  { path: '/workout',  icon: '🏋️', labelKey: 'workout'  as const },
-  { path: '/log',      icon: '📝', labelKey: 'log'      as const },
-  { path: '/progress', icon: '📈', labelKey: 'progress' as const },
+  { path: '/app',      icon: '⚡', label: 'CHECK-IN' },
+  { path: '/workout',  icon: '🏋️', label: 'WORKOUT' },
+  { path: '/log',      icon: '📝', label: 'LOG'     },
+  { path: '/progress', icon: '📈', label: 'STATS'   },
 ];
 
 const moreItems = [
@@ -82,23 +82,25 @@ const BottomNav = () => {
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 text-xs transition-all relative
+                className={`flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 transition-all relative
                   ${active ? 'text-primary' : 'text-muted-foreground'}`}
               >
                 {active && <span className="absolute top-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />}
                 <span className="text-lg leading-none mt-1">{item.icon}</span>
-                <span className={`text-[10px] tracking-wide ${active ? 'font-semibold' : ''}`}>{t(item.labelKey)}</span>
+                <span className={`text-[8px] sm:text-[9px] tracking-widest font-semibold uppercase ${active ? 'text-primary' : 'text-muted-foreground'}`}>
+                  {item.label}
+                </span>
               </NavLink>
             );
           })}
 
           <button
             onClick={() => setShowMore(!showMore)}
-            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 text-xs transition-colors
+            className={`flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1.5 transition-all
               ${moreActive || showMore ? 'text-primary' : 'text-muted-foreground'}`}
           >
-            <span className="text-lg">{showMore ? '✕' : '☰'}</span>
-            <span>More</span>
+            <span className="text-lg leading-none mt-1">{showMore ? '✕' : '☰'}</span>
+            <span className="text-[8px] sm:text-[9px] tracking-widest font-semibold uppercase">MORE</span>
           </button>
         </div>
       </nav>
