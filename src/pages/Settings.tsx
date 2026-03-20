@@ -35,6 +35,12 @@ const SettingsPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Body composition — saved to Supabase user_profiles
+  const [bodyFat, setBodyFat]             = useState<number | ''>('');
+  const [bodyFatMethod, setBodyFatMethod] = useState<'dexa' | 'smart_scale' | 'estimate'>('estimate');
+  const [bodyFatDate, setBodyFatDate]     = useState('');
+  const [bodyCompSaved, setBodyCompSaved] = useState(false);
+
   const isDirty = name !== savedName
     || age !== savedAge
     || weight !== savedWeight
@@ -64,6 +70,11 @@ const SettingsPage = () => {
           setSavedName(n); setSavedAge(a); setSavedWeight(w); setSavedHR(hr);
           setSavedHeight(h); setSavedActivity(al as ActivityLevel);
           if (data.language === 'th' || data.language === 'en') setLang(data.language);
+
+          // Load body composition from Supabase
+          if ((data as any).body_fat_pct)    setBodyFat(Number((data as any).body_fat_pct));
+          if ((data as any).body_fat_method) setBodyFatMethod((data as any).body_fat_method);
+          if ((data as any).body_fat_date)   setBodyFatDate((data as any).body_fat_date);
         }
       } catch (err) {
         console.error('Failed to load settings:', err);
@@ -102,6 +113,29 @@ const SettingsPage = () => {
       setSaving(false);
     }
   };
+
+  const handleSaveBodyComp = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { error } = await supabase.from('user_profiles').update({
+        body_fat_pct:    bodyFat !== '' ? Number(bodyFat) : null,
+        body_fat_method: bodyFatMethod,
+        body_fat_date:   bodyFatDate || null,
+        updated_at:      new Date().toISOString(),
+      } as any).eq('id', user.id);
+      if (error) throw error;
+      setBodyCompSaved(true);
+      setTimeout(() => setBodyCompSaved(false), 2500);
+      toast.success('Body composition saved!');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save');
+    }
+  };
+
+  const muscleMassKg = bodyFat && weight
+    ? Math.round(weight * (1 - Number(bodyFat) / 100) * 10) / 10
+    : null;
 
   const handleLangChange = async (newLang: 'en' | 'th') => {
     setLang(newLang);
@@ -202,6 +236,102 @@ const SettingsPage = () => {
           className={isDirty ? 'ring-2 ring-primary ring-offset-2 ring-offset-card' : ''}
         >
           {saving ? 'Saving...' : isDirty ? 'Save Changes ●' : 'Saved ✓'}
+        </Button>
+      </div>
+
+      {/* Body Composition */}
+      <div className="bg-card rounded-xl p-5 card-shadow space-y-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="font-semibold">Body Composition</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Updates Fitness Age on Longevity page</p>
+          </div>
+          <span className="text-[10px] px-2 py-1 rounded-full font-bold"
+            style={{ background: 'rgba(108,99,255,0.12)', color: 'hsl(245 100% 70%)', border: '1px solid rgba(108,99,255,0.3)' }}>
+            🧬 LONGEVITY
+          </span>
+        </div>
+
+        {/* Body fat % */}
+        <div>
+          <label className="text-sm text-muted-foreground block mb-1">
+            Body Fat %
+            {bodyFat !== '' && (
+              <span className="ml-2 font-mono text-primary">{bodyFat}%</span>
+            )}
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="number" min={3} max={60} step={0.1}
+              value={bodyFat}
+              onChange={e => setBodyFat(e.target.value === '' ? '' : parseFloat(e.target.value))}
+              placeholder="e.g. 18.5"
+              className="flex-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground focus:outline-none focus:border-primary"
+            />
+            <span className="text-muted-foreground text-sm">%</span>
+          </div>
+        </div>
+
+        {/* Derived: Lean muscle mass */}
+        {muscleMassKg !== null && (
+          <div className="flex items-center justify-between rounded-lg px-3 py-2.5"
+            style={{ background: 'rgba(108,99,255,0.08)', border: '1px solid rgba(108,99,255,0.2)' }}>
+            <span className="text-sm text-muted-foreground">Est. Lean Mass</span>
+            <span className="font-mono font-bold text-sm" style={{ color: 'hsl(245 100% 70%)' }}>
+              {muscleMassKg} kg
+            </span>
+          </div>
+        )}
+
+        {/* Measurement method */}
+        <div>
+          <label className="text-sm text-muted-foreground block mb-2">Measurement Method</label>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { val: 'dexa',        icon: '🔬', label: 'DEXA Scan' },
+              { val: 'smart_scale', icon: '⚖️', label: 'Smart Scale' },
+              { val: 'estimate',    icon: '📐', label: 'Estimate' },
+            ] as { val: typeof bodyFatMethod; icon: string; label: string }[]).map(o => (
+              <button key={o.val} onClick={() => setBodyFatMethod(o.val)}
+                className="flex flex-col items-center gap-1 py-2.5 px-2 rounded-lg text-xs font-medium transition-colors"
+                style={bodyFatMethod === o.val
+                  ? { background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.45)', color: 'hsl(245 100% 75%)' }
+                  : { background: 'hsl(var(--secondary))', border: '1px solid transparent', color: 'hsl(var(--muted-foreground))' }}>
+                <span style={{ fontSize: 16 }}>{o.icon}</span>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Last measured date */}
+        <div>
+          <label className="text-sm text-muted-foreground block mb-1">Last Measured</label>
+          <input
+            type="date"
+            value={bodyFatDate}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={e => setBodyFatDate(e.target.value)}
+            className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+          />
+        </div>
+
+        {/* Accuracy note */}
+        <p className="text-xs text-muted-foreground leading-relaxed"
+          style={{ borderLeft: '2px solid rgba(108,99,255,0.3)', paddingLeft: 10 }}>
+          {bodyFatMethod === 'dexa'
+            ? '✓ DEXA scan is the gold standard — highest accuracy for Fitness Age calculation'
+            : bodyFatMethod === 'smart_scale'
+            ? '⚡ Smart scale estimates vary ±3–5%. Measure same time of day for consistency'
+            : '📐 Estimate has lower accuracy. Use DEXA or smart scale when possible for better Fitness Age results'}
+        </p>
+
+        <Button
+          onClick={handleSaveBodyComp}
+          disabled={bodyFat === ''}
+          variant={bodyCompSaved ? 'default' : 'outline'}
+        >
+          {bodyCompSaved ? '✓ Saved' : 'Save Body Composition'}
         </Button>
       </div>
 
