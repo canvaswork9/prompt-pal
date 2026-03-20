@@ -222,22 +222,22 @@ const LogPage = () => {
         {/* Card-based set layout (mobile-friendly) */}
         <div className="space-y-2">
           {localSets.map((s, i) => (
-            <div key={i} className={`rounded-xl border p-3 transition-colors ${
+            <div key={i} className={`rounded-xl border p-3 transition-all ${
               s.saved
-                ? 'border-status-green/40 bg-status-green/5'
-                : 'border-border bg-secondary/30'
+                ? 'border-accent/30 bg-accent/5'
+                : 'border-border bg-secondary/20'
             }`}>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-mono font-medium text-muted-foreground">
                   {s.is_warmup ? 'Warm-up' : `Set ${s.set_number}`}
                 </span>
                 {s.saved ? (
-                  <span className="text-status-green text-xs font-medium">✓ Saved</span>
+                  <span className="text-accent text-xs font-bold tracking-wide">✓ SAVED</span>
                 ) : (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 px-3 text-xs"
+                    className="h-8 px-3 text-xs font-semibold text-accent hover:bg-accent/10"
                     onClick={() => handleSaveSet(i)}
                     disabled={saving || s.weight_kg <= 0 || s.reps <= 0}
                   >
@@ -290,9 +290,15 @@ const LogPage = () => {
         <Button variant="outline" size="sm" onClick={addSet}>+ Add Set</Button>
 
         {bestSet && (
-          <div className="bg-secondary rounded-lg p-3 space-y-1 text-sm">
-            <div>Best set: <span className="font-mono font-semibold">{bestSet.weight_kg} kg × {bestSet.reps}</span></div>
-            <div>Est. 1RM: <span className="font-mono font-semibold">~{best1RM} kg</span></div>
+          <div className="bg-secondary/50 border border-border rounded-xl p-3 space-y-1 text-sm">
+            <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Best set</div>
+            <div className="flex items-center justify-between">
+              <span className="font-mono font-semibold">{bestSet.weight_kg} kg × {bestSet.reps}</span>
+              <div className="text-right">
+                <span className="text-xs text-muted-foreground">Est. 1RM </span>
+                <span className="font-mono font-bold text-accent">~{best1RM} kg</span>
+              </div>
+            </div>
           </div>
         )}
 
