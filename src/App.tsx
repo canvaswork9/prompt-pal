@@ -20,6 +20,7 @@ import AdminPage from "./pages/Admin";
 import SettingsPage from "./pages/Settings";
 import WeightPage from "./pages/Weight";
 import DashboardPage from "./pages/Dashboard";
+import LongevityPage from "./pages/Longevity";
 import NotFound from "./pages/NotFound";
 import AppSidebar from "./components/AppSidebar";
 import BottomNav from "./components/BottomNav";
@@ -111,8 +112,9 @@ const App = () => (
             <Route path="/coach" element={<ProtectedRoute><CoachPage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
             <Route path="/weight" element={<ProtectedRoute><WeightPage /></ProtectedRoute>} />
-            <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+            <Route path="/dashboard"  element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+            <Route path="/longevity"  element={<ProtectedRoute><LongevityPage /></ProtectedRoute>} />
+            <Route path="/settings"   element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AppLayout>
