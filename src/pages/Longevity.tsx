@@ -177,7 +177,76 @@ function calcLongevityScore(days: DayData[], workouts: WorkoutDay[]): LongevityS
   };
 }
 
-// ── Biological Age calculation ─────────────────────────────────
+interface RecoveryDebt {
+  score: number;           // 0-100
+  level: 'RECOVERED' | 'MILD' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+  recommendation: string;
+  incidents: { date: string; type: 'red_workout' | 'yellow_workout' }[];
+  trend: { date: string; debt: number }[];  // last 30 days
+  daysSinceHigh: number | null;
+}
+
+// ── Recovery Debt calculation ──────────────────────────────────
+function calcRecoveryDebt(days: DayData[], workouts: WorkoutDay[]): RecoveryDebt {
+  const workoutDates = new Set(workouts.map(w => w.date));
+
+  // Build daily debt timeline
+  let debt = 0;
+  const trend: { date: string; debt: number }[] = [];
+  const incidents: { date: string; type: 'red_workout' | 'yellow_workout' }[] = [];
+
+  for (const day of days) {
+    if (!day.status) {
+      trend.push({ date: day.date, debt: Math.round(debt) });
+      continue;
+    }
+    const trained = workoutDates.has(day.date);
+
+    if (day.status === 'Red' && trained) {
+      debt = Math.min(100, debt + 20);
+      incidents.push({ date: day.date, type: 'red_workout' });
+    } else if (day.status === 'Yellow' && trained) {
+      debt = Math.min(100, debt + 5);
+      incidents.push({ date: day.date, type: 'yellow_workout' });
+    } else if (day.status === 'Red' && !trained) {
+      debt = Math.max(0, debt - 15);
+    } else if (day.status === 'Green') {
+      debt = Math.max(0, debt - 10);
+    }
+
+    trend.push({ date: day.date, debt: Math.round(debt) });
+  }
+
+  const score = Math.round(debt);
+  const level = score <= 15 ? 'RECOVERED'
+    : score <= 35 ? 'MILD'
+    : score <= 60 ? 'MODERATE'
+    : score <= 80 ? 'HIGH'
+    : 'CRITICAL';
+
+  const recommendation = level === 'RECOVERED' ? 'Body is fresh — train at full intensity.'
+    : level === 'MILD'     ? 'Monitor closely. Avoid adding extra sessions this week.'
+    : level === 'MODERATE' ? 'Scale back intensity 20–30%. Prioritize sleep and nutrition.'
+    : level === 'HIGH'     ? 'Deload week recommended. Reduce volume by 50%.'
+    : 'Stop training. Full rest for 3–5 days minimum. See a professional if pain persists.';
+
+  // Days since debt was last HIGH or above
+  const recentHighIdx = [...trend].reverse().findIndex(t => t.debt > 60);
+  const daysSinceHigh = recentHighIdx === -1 ? null : recentHighIdx;
+
+  // Only keep last 5 red_workout incidents
+  const redIncidents = incidents.filter(i => i.type === 'red_workout').slice(-5);
+
+  return { score, level, recommendation, incidents: redIncidents, trend: trend.slice(-30), daysSinceHigh };
+}
+
+const DEBT_CONFIG = {
+  RECOVERED: { color: 'hsl(77 100% 58%)',  bg: 'rgba(186,255,41,0.08)',  border: 'rgba(186,255,41,0.25)',  label: 'RECOVERED'  },
+  MILD:      { color: 'hsl(245 100% 70%)', bg: 'rgba(108,99,255,0.08)', border: 'rgba(108,99,255,0.25)',  label: 'MILD DEBT'  },
+  MODERATE:  { color: 'hsl(38 88% 58%)',   bg: 'rgba(251,191,36,0.08)', border: 'rgba(251,191,36,0.25)',  label: 'MODERATE'   },
+  HIGH:      { color: 'hsl(2 84% 60%)',    bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.25)',   label: 'HIGH DEBT'  },
+  CRITICAL:  { color: 'hsl(0 100% 55%)',   bg: 'rgba(220,20,20,0.1)',   border: 'rgba(220,20,20,0.35)',   label: 'CRITICAL'   },
+};
 function calcBioAge(score: LongevityScore, chronAge: number | null): BioAge {
   if (!chronAge || chronAge <= 0) {
     return { bioAge: 0, chronAge: 0, delta: 0, label: 'ON TRACK', hrAdj: 0, sleepAdj: 0, greenAdj: 0, trainAdj: 0, hasAge: false };
@@ -342,10 +411,11 @@ const LongevityPage = () => {
     setCoachLoading(false);
   }, [user]);
 
-  const score   = calcLongevityScore(days, workouts);
-  const bioAge  = calcBioAge(score, profile.age);
-  const insights = generateInsights(score);
-  const gc = GRADE_CONFIG[score.grade];
+  const score        = calcLongevityScore(days, workouts);
+  const bioAge       = calcBioAge(score, profile.age);
+  const recovDebt    = calcRecoveryDebt(days, workouts);
+  const insights     = generateInsights(score);
+  const gc           = GRADE_CONFIG[score.grade];
 
   useEffect(() => {
     if (!loading && score.totalDays >= 7) loadCoach(score);
@@ -548,6 +618,142 @@ const LongevityPage = () => {
               <p style={{ fontFamily: DM, fontSize: 11, color: '#2a2a50', marginTop: 12, lineHeight: 1.6 }}>
                 Based on cardiovascular and recovery markers only — resting HR, sleep, resilience, and training consistency. True biological age requires body composition, HRV, VO2max, and blood markers. This is a fitness-based estimate, not a medical assessment.
               </p>
+            </motion.div>
+          );
+        })()}
+
+        {/* ── RECOVERY DEBT ── */}
+        {score.totalDays >= 3 && (() => {
+          const dc = DEBT_CONFIG[recovDebt.level];
+          const R_GAUGE = 40;
+          const CIRC_GAUGE = 2 * Math.PI * R_GAUGE;
+          // Arc is semicircle: 180° = half circumference
+          const arcLen  = CIRC_GAUGE * 0.6;  // 60% of circle = 216° arc
+          const filled  = arcLen * (recovDebt.score / 100);
+          const empty   = arcLen - filled;
+
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}
+              className="rounded-xl p-4"
+              style={{ background: '#0d0d1f', border: `1px solid ${dc.border}`, boxShadow: `0 0 28px ${dc.bg}` }}
+            >
+              <p style={SEC_LABEL}>RECOVERY DEBT</p>
+
+              {/* Gauge + level */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
+                {/* Arc gauge */}
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <svg width="100" height="72" viewBox="0 0 100 72">
+                    {/* Track arc */}
+                    <circle cx="50" cy="54" r={R_GAUGE} fill="none"
+                      stroke="#111125" strokeWidth="8"
+                      strokeDasharray={`${arcLen} ${CIRC_GAUGE}`}
+                      strokeLinecap="round"
+                      transform="rotate(162 50 54)"
+                    />
+                    {/* Filled arc */}
+                    <motion.circle cx="50" cy="54" r={R_GAUGE} fill="none"
+                      stroke={dc.color} strokeWidth="8"
+                      strokeDasharray={`${filled} ${CIRC_GAUGE}`}
+                      strokeLinecap="round"
+                      transform="rotate(162 50 54)"
+                      initial={{ strokeDasharray: `0 ${CIRC_GAUGE}` }}
+                      animate={{ strokeDasharray: `${filled} ${CIRC_GAUGE}` }}
+                      transition={{ duration: 1, ease: 'easeOut', delay: 0.3 }}
+                    />
+                    {/* Score label */}
+                    <text x="50" y="52" textAnchor="middle" fill="#ffffff"
+                      style={{ fontFamily: MONO, fontWeight: 700, fontSize: 20 }}>
+                      {recovDebt.score}
+                    </text>
+                    <text x="50" y="64" textAnchor="middle" fill="#2a2a50"
+                      style={{ fontFamily: BC, fontSize: 7, letterSpacing: 1 }}>
+                      / 100
+                    </text>
+                  </svg>
+                  {/* Min/Max labels */}
+                  <span style={{ position: 'absolute', left: 4, bottom: 2, fontFamily: BC, fontSize: 9, color: '#2a2a50' }}>0</span>
+                  <span style={{ position: 'absolute', right: 4, bottom: 2, fontFamily: BC, fontSize: 9, color: '#2a2a50' }}>100</span>
+                </div>
+
+                {/* Level + recommendation */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 10px', borderRadius: 20, background: dc.bg, border: `1px solid ${dc.border}`, marginBottom: 7 }}>
+                    <span style={{ fontFamily: BC, fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', color: dc.color }}>
+                      {dc.label}
+                    </span>
+                  </div>
+                  <p style={{ fontFamily: DM, fontSize: 13, color: '#c0c0e0', lineHeight: 1.55 }}>
+                    {recovDebt.recommendation}
+                  </p>
+                </div>
+              </div>
+
+              {/* 30-day debt trend sparkline */}
+              {recovDebt.trend.length > 5 && (() => {
+                const vals = recovDebt.trend.map(t => t.debt);
+                const max  = Math.max(...vals, 1);
+                const W = 240, H = 36;
+                const pts = vals.map((v, i) => {
+                  const x = (i / (vals.length - 1)) * W;
+                  const y = H - (v / max) * H;
+                  return `${x},${y}`;
+                }).join(' ');
+                return (
+                  <div style={{ borderTop: '1px solid #16162a', paddingTop: 12, marginBottom: 12 }}>
+                    <p style={{ fontFamily: BC, fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#2a2a50', marginBottom: 7 }}>
+                      30-DAY TREND
+                    </p>
+                    <svg width="100%" height={H + 4} viewBox={`0 0 ${W} ${H + 4}`} preserveAspectRatio="none">
+                      {/* Zero line */}
+                      <line x1="0" y1={H} x2={W} y2={H} stroke="#111125" strokeWidth="1" />
+                      {/* Debt line */}
+                      <polyline points={pts} fill="none" stroke={dc.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      {/* Today dot */}
+                      {(() => {
+                        const last = vals[vals.length - 1];
+                        const y = H - (last / max) * H;
+                        return <circle cx={W} cy={y} r="3" fill={dc.color} />;
+                      })()}
+                    </svg>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+                      <span style={{ fontFamily: BC, fontSize: 10, color: '#2a2a50' }}>30 days ago</span>
+                      <span style={{ fontFamily: BC, fontSize: 10, color: '#2a2a50' }}>Today</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Red-day incidents */}
+              {recovDebt.incidents.length > 0 && (
+                <div style={{ borderTop: '1px solid #16162a', paddingTop: 12, marginBottom: 12 }}>
+                  <p style={{ fontFamily: BC, fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#2a2a50', marginBottom: 7 }}>
+                    RED DAY WORKOUTS — RECENT
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {recovDebt.incidents.slice(-4).reverse().map((inc, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: '7px 10px' }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'hsl(2 84% 60%)', flexShrink: 0 }} />
+                        <span style={{ fontFamily: DM, fontSize: 12, color: '#c06060', flex: 1 }}>
+                          Trained on Red day — {new Date(inc.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                        <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: 'hsl(2 84% 60%)' }}>+20pts</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Days since high debt */}
+              {recovDebt.daysSinceHigh !== null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#07070f', borderRadius: 8, padding: '8px 12px' }}>
+                  <span style={{ fontFamily: BC, fontSize: 12, color: '#404070' }}>Last HIGH debt period:</span>
+                  <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: recovDebt.daysSinceHigh < 7 ? 'hsl(2 84% 60%)' : 'hsl(77 100% 58%)' }}>
+                    {recovDebt.daysSinceHigh === 0 ? 'Today' : `${recovDebt.daysSinceHigh}d ago`}
+                  </span>
+                </div>
+              )}
             </motion.div>
           );
         })()}
