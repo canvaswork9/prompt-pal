@@ -12,6 +12,7 @@ const mainNavItems = [
 ];
 
 const moreItems = [
+  { path: '/longevity', icon: '🧬', label: 'Longevity' },
   { path: '/meal',      icon: '🍽️', label: 'Meal'      },
   { path: '/coach',     icon: '🤖', label: 'Coach'     },
   { path: '/weight',    icon: '⚖️', label: 'Weight'    },
