@@ -1,27 +1,89 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <!-- TODO: Set the document title to the name of your application -->
-    <title>Lovable App</title>
-    <meta name="description" content="Lovable Generated Project">
-    <meta name="author" content="Lovable" />
 
-    <!-- TODO: Update og:title to match your application name -->
-    
-    
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d77ebb34-d334-4e98-874e-4ae23ec098fe/id-preview-da26446f--f47799d5-a6ec-470d-9d30-c02f34d1cf4b.lovable.app-1773631407791.png">
+    <!-- ── Viewport — mobile-first, safe area support ── -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Lovable" />
-    <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d77ebb34-d334-4e98-874e-4ae23ec098fe/id-preview-da26446f--f47799d5-a6ec-470d-9d30-c02f34d1cf4b.lovable.app-1773631407791.png">
-    <meta property="og:title" content="Lovable App">
-  <meta name="twitter:title" content="Lovable App">
-  <meta property="og:description" content="Lovable Generated Project">
-  <meta name="twitter:description" content="Lovable Generated Project">
-</head>
+    <!-- ── Primary identity ── -->
+    <title>FitDecide — Know Before You Train</title>
+    <meta name="description" content="FitDecide analyzes your daily readiness — sleep, heart rate, soreness — and tells you exactly how hard to train today." />
+    <meta name="author" content="FitDecide" />
+    <meta name="application-name" content="FitDecide" />
+
+    <!-- ── Theme color — Apex Dark background ── -->
+    <meta name="theme-color" content="#06060C" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- ── iOS PWA ── -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="FitDecide" />
+
+    <!-- ── Android PWA ── -->
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- ── Open Graph ── -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:site_name"   content="FitDecide" />
+    <meta property="og:title"       content="FitDecide — Know Before You Train" />
+    <meta property="og:description" content="Daily readiness tracking for serious athletes. Train smart, recover harder." />
+    <meta property="og:image"       content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d77ebb34-d334-4e98-874e-4ae23ec098fe/id-preview-da26446f--f47799d5-a6ec-470d-9d30-c02f34d1cf4b.lovable.app-1773631407791.png" />
+
+    <!-- ── Twitter / X ── -->
+    <meta name="twitter:card"        content="summary_large_image" />
+    <meta name="twitter:title"       content="FitDecide — Know Before You Train" />
+    <meta name="twitter:description" content="Daily readiness tracking for serious athletes. Train smart, recover harder." />
+    <meta name="twitter:image"       content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d77ebb34-d334-4e98-874e-4ae23ec098fe/id-preview-da26446f--f47799d5-a6ec-470d-9d30-c02f34d1cf4b.lovable.app-1773631407791.png" />
+
+    <!-- ── Preconnect Google Fonts for faster load ── -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- ── Inline critical styles — prevent FOUC on dark bg ── -->
+    <style>
+      /* Paint background before React hydrates — no white flash */
+      html, body, #root {
+        background-color: #06060C;
+        color: #F0F0FA;
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+        min-height: 100dvh;
+      }
+
+      /* iOS momentum scroll */
+      body {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: none;
+      }
+
+      /* Loading state — shown until React mounts */
+      #root:empty::after {
+        content: '';
+        display: block;
+        width: 40px;
+        height: 40px;
+        margin: 45vh auto 0;
+        border-radius: 50%;
+        border: 3px solid #111125;
+        border-top-color: #6C63FF;
+        animation: spin 0.7s linear infinite;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      /* Safe area padding for notched devices */
+      #root {
+        padding-top: env(safe-area-inset-top);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+      }
+    </style>
+  </head>
 
   <body>
     <div id="root"></div>
