@@ -242,11 +242,10 @@ const DashboardPage = () => {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {statCards.map((s, i) => (
-          <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-            className="bg-card rounded-xl p-4 card-shadow text-center">
-            <div className="text-[9px] text-muted-foreground uppercase tracking-widest font-semibold">{s.label}</div>
-            <div className="font-mono font-bold text-xl mt-1.5 tracking-tight" style={{ color: 'hsl(245 100% 70%)' }}>{s.value}</div>
-            {s.sub && <div className="text-[10px] text-muted-foreground mt-0.5">{s.sub}</div>}
+          <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="bg-card rounded-xl p-4 card-shadow text-center">
+            <div className="text-label">{s.label}</div>
+            <div className="text-data text-xl mt-1.5">{s.value}</div>
+            {s.sub && <div className="text-[10px] text-muted-foreground">{s.sub}</div>}
           </motion.div>
         ))}
       </div>
@@ -254,7 +253,7 @@ const DashboardPage = () => {
       {/* Calorie Balance */}
       {calorieChart.length > 0 && (
         <div className="bg-card rounded-xl p-5 card-shadow">
-          <h3 className="font-semibold mb-4">Calorie Balance</h3>
+          <h3 className="font-display font-bold text-sm tracking-tight mb-4 uppercase text-foreground">Calorie Balance</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={calorieChart}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -274,7 +273,7 @@ const DashboardPage = () => {
       {/* Weight Trend (only for 7 or 30 days) */}
       {period !== 'today' && weightChart.length > 1 && (
         <div className="bg-card rounded-xl p-5 card-shadow">
-          <h3 className="font-semibold mb-4">Weight Trend</h3>
+          <h3 className="font-display font-bold text-sm tracking-tight mb-4 uppercase text-foreground">Weight Trend</h3>
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={weightChart}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -290,7 +289,7 @@ const DashboardPage = () => {
       {/* Readiness Trend */}
       {readinessChart.length > 0 && (
         <div className="bg-card rounded-xl p-5 card-shadow">
-          <h3 className="font-semibold mb-4">Readiness Trend</h3>
+          <h3 className="font-display font-bold text-sm tracking-tight mb-4 uppercase text-foreground">Readiness Trend</h3>
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={readinessChart}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -308,7 +307,7 @@ const DashboardPage = () => {
       {/* Workout Sessions */}
       {sessions.length > 0 && (
         <div className="bg-card rounded-xl p-5 card-shadow">
-          <h3 className="font-semibold mb-4">Workout Sessions</h3>
+          <h3 className="font-display font-bold text-sm tracking-tight mb-4 uppercase text-foreground">Workout Sessions</h3>
           <div className="space-y-0 divide-y divide-border/50">
             {sessions.map((s, i) => (
                 <div key={i} className="flex items-center justify-between py-3">
