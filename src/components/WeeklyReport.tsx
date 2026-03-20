@@ -59,7 +59,7 @@ function getLastWeekRange(): { start: string; end: string; label: string } {
 
 // ── Should report show? Mon=1, Tue=2, Wed=3 ──
 // DEV: set to true to test on any day
-const DEV_SHOW = true;
+const DEV_SHOW = false;
 
 function shouldShowReport(dismissKey: string): boolean {
   const dow = new Date().getDay();
