@@ -41,12 +41,14 @@ const ResultCard = ({ result, data, onBack }: ResultCardProps) => {
 
       {/* Status Badge */}
       <div className="text-center">
-        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${
-          result.status === 'Green' ? 'bg-status-green-dim text-status-green' :
-          result.status === 'Yellow' ? 'bg-status-yellow-dim text-status-yellow' :
-          'bg-status-red-dim text-status-red'
-        }`}>
-          ● {result.status} — {result.decision}
+        <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide ${
+          result.status === 'Green'
+            ? 'text-accent-foreground'
+            : result.status === 'Yellow'
+            ? 'bg-status-yellow-dim text-status-yellow'
+            : 'bg-status-red-dim text-status-red'
+        }`} style={result.status === 'Green' ? { background: 'hsl(77 100% 58% / 0.15)', color: 'hsl(77 100% 58%)', border: '1px solid hsl(77 100% 58% / 0.3)' } : {}}>
+          ● {result.status === 'Green' ? 'PEAK CONDITION' : result.status === 'Yellow' ? 'MODERATE' : 'REST DAY'} — {result.decision}
         </div>
       </div>
 
