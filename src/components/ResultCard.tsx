@@ -41,23 +41,21 @@ const ResultCard = ({ result, data, onBack }: ResultCardProps) => {
 
       {/* Status Badge */}
       <div className="text-center">
-        <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide ${
-          result.status === 'Green'
-            ? 'text-accent-foreground'
-            : result.status === 'Yellow'
-            ? 'bg-status-yellow-dim text-status-yellow'
-            : 'bg-status-red-dim text-status-red'
-        }`} style={result.status === 'Green' ? { background: 'hsl(77 100% 58% / 0.15)', color: 'hsl(77 100% 58%)', border: '1px solid hsl(77 100% 58% / 0.3)' } : {}}>
-          ● {result.status === 'Green' ? 'PEAK CONDITION' : result.status === 'Yellow' ? 'MODERATE' : 'REST DAY'} — {result.decision}
+        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${
+          result.status === 'Green' ? 'bg-status-green-dim text-status-green' :
+          result.status === 'Yellow' ? 'bg-status-yellow-dim text-status-yellow' :
+          'bg-status-red-dim text-status-red'
+        }`}>
+          ● {result.status} — {result.decision}
         </div>
       </div>
 
       {/* Decision Panel */}
       <div className="bg-card rounded-xl p-5 card-shadow space-y-3">
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div><span className="text-muted-foreground">{t('decision')}</span><div className="font-semibold">{result.decision}</div></div>
-          <div><span className="text-muted-foreground">{t('todays_split')}</span><div className="font-semibold">{result.training_split}</div></div>
-          <div><span className="text-muted-foreground">{t('intensity')}</span><div className="font-semibold">{result.intensity_note}</div></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><span className="text-label block">{t('decision')}</span><div className="font-semibold text-sm mt-0.5">{result.decision}</div></div>
+          <div><span className="text-label block">{t('todays_split')}</span><div className="font-semibold text-sm mt-0.5">{result.training_split}</div></div>
+          <div><span className="text-label block">{t('intensity')}</span><div className="font-semibold text-sm mt-0.5">{result.intensity_note}</div></div>
           <div><span className="text-muted-foreground">Cardio</span><div className="font-semibold">{result.cardio_zone}</div></div>
         </div>
 
