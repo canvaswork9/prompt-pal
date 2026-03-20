@@ -242,10 +242,11 @@ const DashboardPage = () => {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {statCards.map((s, i) => (
-          <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="bg-card rounded-xl p-4 card-shadow text-center">
-            <div className="text-[10px] text-muted-foreground uppercase">{s.label}</div>
-            <div className="font-mono font-bold text-lg mt-1">{s.value}</div>
-            {s.sub && <div className="text-[10px] text-muted-foreground">{s.sub}</div>}
+          <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+            className="bg-card rounded-xl p-4 card-shadow text-center">
+            <div className="text-[9px] text-muted-foreground uppercase tracking-widest font-semibold">{s.label}</div>
+            <div className="font-mono font-bold text-xl mt-1.5 tracking-tight" style={{ color: 'hsl(245 100% 70%)' }}>{s.value}</div>
+            {s.sub && <div className="text-[10px] text-muted-foreground mt-0.5">{s.sub}</div>}
           </motion.div>
         ))}
       </div>
