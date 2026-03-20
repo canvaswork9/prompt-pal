@@ -77,8 +77,8 @@ const CheckinPage = () => {
 
       {/* Header */}
       <div className="space-y-1">
-        <h1 className="text-display text-2xl sm:text-3xl">{t('greeting')}, {displayName || user?.email?.split('@')[0] || 'User'} 👋</h1>
-        <p className="text-muted-foreground">{dayName}, {dateStr} · {t('time_to_checkin')}</p>
+        <h1 className="text-display text-3xl sm:text-4xl">{t('greeting')}, {displayName || user?.email?.split('@')[0] || 'User'} 👋</h1>
+        <p className="text-muted-foreground text-sm">{dayName}, {dateStr} · {t('time_to_checkin')}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -224,13 +224,13 @@ const CheckinPage = () => {
 
       {/* Submit */}
       <Button
-        variant="accent"
+        variant="lime"
         size="xl"
-        className="w-full"
+        className="w-full font-display tracking-widest uppercase text-sm"
         disabled={saving || submitted}
         onClick={handleSave}
       >
-        {saving ? '...' : submitted ? t('analyze') + ' ✓' : t('analyze')}
+        {saving ? '...' : submitted ? '⚡ ' + t('analyze') + ' ✓' : '⚡ ANALYZE MY READINESS'}
       </Button>
     </div>
   );
