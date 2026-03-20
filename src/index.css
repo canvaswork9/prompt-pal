@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -83,56 +83,103 @@
 }
 
 @layer utilities {
-  .font-display { font-family: 'Syne', sans-serif; }
+  /* ── FONT FAMILIES ── */
+  .font-display { font-family: 'Barlow Condensed', sans-serif; }
   .font-body    { font-family: 'DM Sans', sans-serif; }
   .font-mono    { font-family: 'JetBrains Mono', monospace; }
 
-  .text-display {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    letter-spacing: -0.045em;
-    line-height: 0.95;
-    text-transform: uppercase;
-  }
+  /* ── DISPLAY TYPOGRAPHY — Barlow Condensed ──
+     Note: Barlow Condensed uses POSITIVE letter-spacing
+     unlike Syne — condensed fonts need slight breathing room
+  */
 
-  /* Responsive fluid display sizes */
-  .text-display-hero {
-    font-family: 'Syne', sans-serif;
+  /* Base display */
+  .text-display {
+    font-family: 'Barlow Condensed', sans-serif;
     font-weight: 800;
-    letter-spacing: -0.045em;
+    letter-spacing: 0.01em;
     line-height: 0.92;
     text-transform: uppercase;
-    font-size: clamp(28px, 7vw, 48px);
   }
 
-  .text-display-lg {
-    font-family: 'Syne', sans-serif;
+  /* Hero — GOOD MORNING, page titles · clamp = mobile-first responsive */
+  .text-display-hero {
+    font-family: 'Barlow Condensed', sans-serif;
     font-weight: 800;
-    letter-spacing: -0.04em;
+    letter-spacing: 0.01em;
+    line-height: 0.88;
+    text-transform: uppercase;
+    font-size: clamp(42px, 12vw, 72px);
+  }
+
+  /* Large — section headings, card titles */
+  .text-display-lg {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    letter-spacing: 0.02em;
     line-height: 0.95;
     text-transform: uppercase;
-    font-size: clamp(20px, 5vw, 32px);
+    font-size: clamp(18px, 5vw, 28px);
   }
 
+  /* Small — nav labels, XP level badge, tags */
   .text-display-sm {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Barlow Condensed', sans-serif;
     font-weight: 700;
-    letter-spacing: -0.03em;
+    letter-spacing: 0.06em;
     line-height: 1;
     text-transform: uppercase;
-    font-size: clamp(13px, 3vw, 16px);
+    font-size: clamp(11px, 3vw, 14px);
+  }
+
+  /* ── LABEL — metadata, card section headers ── */
+  .text-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.4;
+  }
+
+  /* ── DATA — numbers, stats, metrics ── */
+  .text-data {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: hsl(var(--foreground));
+    font-feature-settings: 'tnum';
+  }
+
+  .text-data-sm {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: -0.02em;
+    color: hsl(var(--primary));
+    font-feature-settings: 'tnum';
+  }
+
+  /* ── BODY / SUB ── */
+  .text-sub {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 400;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.5;
   }
 
   .tabular-nums { font-feature-settings: 'tnum'; }
 
-  /* Glows */
+  /* ── GLOWS ── */
   .glow-green  { box-shadow: var(--glow-green); }
   .glow-yellow { box-shadow: var(--glow-yellow); }
   .glow-red    { box-shadow: var(--glow-red); }
   .glow-accent { box-shadow: var(--glow-accent); }
   .glow-lime   { box-shadow: var(--glow-lime); }
 
-  /* Card shadows — deeper for premium float effect */
+  /* ── CARD SHADOWS ── */
   .card-shadow {
     box-shadow: 0 0 0 1px hsl(var(--border)),
                 0 4px 16px -2px rgba(0,0,0,0.5),
@@ -144,17 +191,15 @@
                 0 1px 0 0 rgba(255,255,255,0.04) inset;
   }
 
-  /* Lime accent button glow */
-  .glow-lime-btn {
-    box-shadow: 0 4px 20px rgba(186,255,41,0.25);
-  }
+  /* ── BUTTONS ── */
+  .glow-lime-btn { box-shadow: 0 4px 20px rgba(186,255,41,0.25); }
 
-  /* Status dims */
+  /* ── STATUS DIMS ── */
   .bg-status-green-dim  { background: hsl(var(--status-green-dim)); }
   .bg-status-yellow-dim { background: hsl(var(--status-yellow-dim)); }
   .bg-status-red-dim    { background: hsl(var(--status-red-dim)); }
 
-  /* Mono data text gets primary tint */
+  /* ── DATA VALUE ── */
   .data-value {
     font-family: 'JetBrains Mono', monospace;
     font-weight: 700;
@@ -162,15 +207,17 @@
     letter-spacing: -0.03em;
   }
 
-  /* Reward pill — lime */
+  /* ── REWARD PILL — lime achievement badge ── */
   .reward-pill {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     padding: 3px 10px;
     border-radius: 20px;
-    font-size: 10px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
     font-weight: 700;
+    letter-spacing: 0.04em;
     background: hsl(77 100% 58% / 0.12);
     color: hsl(77 100% 58%);
     border: 1px solid hsl(77 100% 58% / 0.22);
