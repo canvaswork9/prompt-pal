@@ -5,16 +5,17 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 const sidebarItems = [
-  { path: '/app', icon: '⚡', labelKey: 'checkin' as const },
-  { path: '/workout', icon: '🏋️', labelKey: 'workout' as const },
-  { path: '/log', icon: '📝', labelKey: 'log' as const },
-  { path: '/meal', icon: '🍽️', labelKey: 'meal' as const },
-  { path: '/progress', icon: '📈', labelKey: 'progress' as const },
-  { path: '/weight', icon: '⚖️', labelKey: 'weight' as const },
-  { path: '/dashboard', icon: '📊', labelKey: 'dashboard' as const },
-  { path: '/coach', icon: '🤖', labelKey: 'coach' as const },
-  { path: '/settings', icon: '⚙️', labelKey: 'settings' as const },
-  { path: '/admin', icon: '🔧', labelKey: 'admin' as const },
+  { path: '/app',        icon: '⚡',  labelKey: 'checkin'   as const, label: null },
+  { path: '/workout',    icon: '🏋️',  labelKey: 'workout'   as const, label: null },
+  { path: '/log',        icon: '📝',  labelKey: 'log'       as const, label: null },
+  { path: '/meal',       icon: '🍽️',  labelKey: 'meal'      as const, label: null },
+  { path: '/progress',   icon: '📈',  labelKey: 'progress'  as const, label: null },
+  { path: '/longevity',  icon: '🧬',  labelKey: null,                  label: 'Longevity' },
+  { path: '/weight',     icon: '⚖️',  labelKey: 'weight'    as const, label: null },
+  { path: '/dashboard',  icon: '📊',  labelKey: 'dashboard' as const, label: null },
+  { path: '/coach',      icon: '🤖',  labelKey: 'coach'     as const, label: null },
+  { path: '/settings',   icon: '⚙️',  labelKey: 'settings'  as const, label: null },
+  { path: '/admin',      icon: '🔧',  labelKey: 'admin'     as const, label: null },
 ];
 
 const AppSidebar = () => {
@@ -52,7 +53,7 @@ const AppSidebar = () => {
             }
           >
             <span>{item.icon}</span>
-            <span>{t(item.labelKey)}</span>
+            <span>{item.label ?? t(item.labelKey!)}</span>
           </NavLink>
         ))}
       </nav>
