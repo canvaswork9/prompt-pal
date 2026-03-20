@@ -20,6 +20,22 @@ interface DayData {
 
 interface WorkoutDay { date: string; }
 
+interface UserProfile {
+  age: number | null;
+}
+
+interface BioAge {
+  bioAge: number;
+  chronAge: number;
+  delta: number;           // bioAge - chronAge (negative = younger)
+  label: 'YOUNGER' | 'ON TRACK' | 'OLDER';
+  hrAdj: number;
+  sleepAdj: number;
+  greenAdj: number;
+  trainAdj: number;
+  hasAge: boolean;         // false if no age in profile
+}
+
 interface LongevityScore {
   total: number;
   grade: 'ELITE' | 'STRONG' | 'BUILDING' | 'STARTING' | 'NEW';
@@ -161,7 +177,51 @@ function calcLongevityScore(days: DayData[], workouts: WorkoutDay[]): LongevityS
   };
 }
 
-function generateInsights(score: LongevityScore): Insight[] {
+// ── Biological Age calculation ─────────────────────────────────
+function calcBioAge(score: LongevityScore, chronAge: number | null): BioAge {
+  if (!chronAge || chronAge <= 0) {
+    return { bioAge: 0, chronAge: 0, delta: 0, label: 'ON TRACK', hrAdj: 0, sleepAdj: 0, greenAdj: 0, trainAdj: 0, hasAge: false };
+  }
+  if (score.totalDays < 7) {
+    return { bioAge: chronAge, chronAge, delta: 0, label: 'ON TRACK', hrAdj: 0, sleepAdj: 0, greenAdj: 0, trainAdj: 0, hasAge: true };
+  }
+
+  // HR adjustment — most reliable cardiovascular biomarker
+  const hrAdj = score.avgHR <= 0  ? 0
+    : score.avgHR < 55  ? -4
+    : score.avgHR < 60  ? -2
+    : score.avgHR < 65  ?  0
+    : score.avgHR < 70  ? +2
+    : score.avgHR < 76  ? +4
+    :                      +6;
+
+  // Sleep adjustment
+  const sleepAdj = score.avgSleep <= 0  ?  0
+    : score.avgSleep >= 7.5 ? -2
+    : score.avgSleep >= 7.0 ? -1
+    : score.avgSleep >= 6.5 ?  0
+    : score.avgSleep >= 6.0 ? +2
+    :                          +4;
+
+  // Green day rate adjustment — resilience proxy
+  const greenAdj = score.greenRate >= 70 ? -2
+    : score.greenRate >= 50 ? -1
+    : score.greenRate >= 30 ?  0
+    :                          +2;
+
+  // Training consistency adjustment — cardiorespiratory proxy
+  const trainAdj = score.workoutsPerWeek >= 4 ? -2
+    : score.workoutsPerWeek >= 3 ? -1
+    : score.workoutsPerWeek >= 2 ?  0
+    :                               +2;
+
+  const totalAdj = hrAdj + sleepAdj + greenAdj + trainAdj;
+  const bioAge   = Math.max(18, chronAge + totalAdj);
+  const delta    = bioAge - chronAge;
+  const label    = delta <= -2 ? 'YOUNGER' : delta >= 3 ? 'OLDER' : 'ON TRACK';
+
+  return { bioAge, chronAge, delta, label, hrAdj, sleepAdj, greenAdj, trainAdj, hasAge: true };
+}
   const ins: Insight[] = [];
   if (score.greenTrend === 'improving')
     ins.push({ type: 'positive', text: `Green day rate improving — momentum is building. Keep this consistency going.` });
@@ -217,6 +277,7 @@ const LongevityPage = () => {
   const [loading, setLoading]     = useState(true);
   const [days, setDays]           = useState<DayData[]>([]);
   const [workouts, setWorkouts]   = useState<WorkoutDay[]>([]);
+  const [profile, setProfile]     = useState<UserProfile>({ age: null });
   const [coachMsg, setCoachMsg]   = useState('');
   const [coachLoading, setCoachLoading] = useState(false);
 
@@ -226,12 +287,14 @@ const LongevityPage = () => {
     const ago = new Date(); ago.setDate(ago.getDate() - 90);
     const since = ago.toISOString().slice(0, 10);
 
-    const [cRes, wRes] = await Promise.all([
+    const [cRes, wRes, pRes] = await Promise.all([
       supabase.from('daily_checkins')
         .select('date, status, readiness_score, sleep_hours, resting_hr')
         .eq('user_id', user.id).gte('date', since).order('date', { ascending: true }),
       supabase.from('workout_sessions')
         .select('date').eq('user_id', user.id).gte('date', since),
+      supabase.from('user_profiles')
+        .select('age').eq('id', user.id).maybeSingle(),
     ]);
 
     const map = new Map<string, DayData>();
@@ -247,6 +310,7 @@ const LongevityPage = () => {
 
     setDays(allDays);
     setWorkouts((wRes.data ?? []).map(w => ({ date: w.date })));
+    setProfile({ age: (pRes.data as any)?.age ?? null });
     setLoading(false);
   }, [user]);
 
@@ -278,7 +342,8 @@ const LongevityPage = () => {
     setCoachLoading(false);
   }, [user]);
 
-  const score = calcLongevityScore(days, workouts);
+  const score   = calcLongevityScore(days, workouts);
+  const bioAge  = calcBioAge(score, profile.age);
   const insights = generateInsights(score);
   const gc = GRADE_CONFIG[score.grade];
 
@@ -358,6 +423,134 @@ const LongevityPage = () => {
             BASED ON {score.totalDays} DAYS OF DATA
           </p>
         </motion.div>
+
+        {/* ── FITNESS AGE ── */}
+        {bioAge.hasAge && score.totalDays >= 7 && (() => {
+          const deltaAbs = Math.abs(bioAge.delta);
+          const isYounger = bioAge.delta < 0;
+          const isOlder   = bioAge.delta > 0;
+          const accentColor = isYounger
+            ? 'hsl(77 100% 58%)'
+            : isOlder ? 'hsl(2 84% 60%)'
+            : 'hsl(245 100% 70%)';
+          const bgGlow = isYounger
+            ? 'rgba(186,255,41,0.06)'
+            : isOlder ? 'rgba(239,68,68,0.06)'
+            : 'rgba(108,99,255,0.06)';
+
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}
+              className="rounded-xl p-4"
+              style={{ background: '#0d0d1f', border: `1px solid ${accentColor}30`, boxShadow: `0 0 32px ${bgGlow}` }}
+            >
+              {/* Header */}
+              <p style={SEC_LABEL}>FITNESS AGE ESTIMATE</p>
+
+              {/* Main numbers row */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 14 }}>
+                {/* Fitness age */}
+                <div>
+                  <p style={{ fontFamily: BC, fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#404070', marginBottom: 2 }}>
+                    FITNESS AGE
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 48, color: accentColor, letterSpacing: '-0.03em', lineHeight: 1 }}>
+                      {bioAge.bioAge}
+                    </span>
+                    <span style={{ fontFamily: BC, fontSize: 14, fontWeight: 600, color: accentColor }}>yrs</span>
+                  </div>
+                </div>
+
+                {/* Delta badge */}
+                <div style={{ textAlign: 'center', paddingBottom: 6 }}>
+                  <p style={{ fontFamily: BC, fontSize: 11, color: '#2a2a50', letterSpacing: '0.06em', marginBottom: 2 }}>VS</p>
+                  <div style={{
+                    padding: '4px 12px', borderRadius: 20,
+                    background: isYounger ? 'rgba(186,255,41,0.1)' : isOlder ? 'rgba(239,68,68,0.1)' : 'rgba(108,99,255,0.1)',
+                    border: `1px solid ${accentColor}40`,
+                  }}>
+                    <span style={{ fontFamily: BC, fontWeight: 800, fontSize: 14, letterSpacing: '0.04em', color: accentColor }}>
+                      {isYounger ? `${deltaAbs}Y YOUNGER` : isOlder ? `${deltaAbs}Y OLDER` : 'ON TRACK'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Calendar age */}
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ fontFamily: BC, fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#404070', marginBottom: 2 }}>
+                    CALENDAR AGE
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, justifyContent: 'flex-end' }}>
+                    <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 32, color: '#404070', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                      {bioAge.chronAge}
+                    </span>
+                    <span style={{ fontFamily: BC, fontSize: 13, fontWeight: 600, color: '#404070' }}>yrs</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Factor breakdown */}
+              <div style={{ borderTop: '1px solid #16162a', paddingTop: 12 }}>
+                <p style={{ fontFamily: BC, fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#2a2a50', marginBottom: 8 }}>
+                  FACTORS USED
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  {[
+                    { label: 'Resting HR',  adj: bioAge.hrAdj,    icon: '❤️' },
+                    { label: 'Sleep',        adj: bioAge.sleepAdj, icon: '😴' },
+                    { label: 'Resilience',   adj: bioAge.greenAdj, icon: '⚡' },
+                    { label: 'Training',     adj: bioAge.trainAdj, icon: '🏋️' },
+                  ].map(({ label, adj, icon }) => {
+                    const adjColor = adj < 0 ? 'hsl(77 100% 58%)' : adj > 0 ? 'hsl(2 84% 60%)' : 'hsl(245 100% 70%)';
+                    return (
+                      <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#07070f', borderRadius: 8, padding: '7px 10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 13 }}>{icon}</span>
+                          <span style={{ fontFamily: BC, fontSize: 12, fontWeight: 600, color: '#606090', letterSpacing: '0.02em' }}>{label}</span>
+                        </div>
+                        <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: adjColor }}>
+                          {adj === 0 ? '±0' : adj > 0 ? `+${adj}` : `${adj}`}y
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Coming soon — missing biomarkers */}
+              <div style={{ borderTop: '1px solid #16162a', paddingTop: 12, marginTop: 12 }}>
+                <p style={{ fontFamily: BC, fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#2a2a50', marginBottom: 8 }}>
+                  UNLOCK FULLER PICTURE
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {[
+                    { label: 'HRV — Heart Rate Variability',     source: 'Whoop · Oura · Garmin' },
+                    { label: 'VO2max',                            source: 'Apple Watch · Garmin' },
+                    { label: 'Body composition (muscle / fat %)', source: 'Smart scale · DEXA' },
+                    { label: 'Metabolic markers (glucose, HbA1c)',source: 'Blood panel' },
+                  ].map(({ label, source }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#07070f', borderRadius: 8, border: '1px solid #111125' }}>
+                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#1e1e3a', flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontFamily: DM, fontSize: 12, color: '#404070' }}>{label}</span>
+                        <span style={{ fontFamily: BC, fontSize: 10, color: '#2a2a50', letterSpacing: '0.04em', marginLeft: 6 }}>— {source}</span>
+                      </div>
+                      <span style={{ fontFamily: BC, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#2a2a50', background: '#111125', padding: '2px 7px', borderRadius: 10 }}>
+                        SOON
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Disclaimer */}
+              <p style={{ fontFamily: DM, fontSize: 11, color: '#2a2a50', marginTop: 12, lineHeight: 1.6 }}>
+                Based on cardiovascular and recovery markers only — resting HR, sleep, resilience, and training consistency. True biological age requires body composition, HRV, VO2max, and blood markers. This is a fitness-based estimate, not a medical assessment.
+              </p>
+            </motion.div>
+          );
+        })()}
 
         {/* ── 90-DAY DOT GRID ── */}
         <motion.div
