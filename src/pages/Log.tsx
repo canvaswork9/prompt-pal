@@ -29,6 +29,11 @@ const LogPage = () => {
   const effectiveStart = sessionStartFromDB ?? sessionStart;
   const [restTimer, setRestTimer] = useState<{ active: boolean; seconds: number }>({ active: false, seconds: 0 });
   const [lastWeights, setLastWeights] = useState<Record<string, number>>({});
+  // Adaptive plan: 1RM map + readiness score for target weight calc
+  const [prRmMap, setPrRmMap]             = useState<Record<string, number>>({});  // exercise_key → est 1RM
+  const [readinessScore, setReadinessScore] = useState<number>(70);
+  // Progressive overload: PRs from last 3 weeks per exercise
+  const [overloadSuggestion, setOverloadSuggestion] = useState<Record<string, { ready: boolean; suggestion: string }>>({});
 
   useEffect(() => {
     async function loadExercises() {
@@ -70,22 +75,66 @@ const LogPage = () => {
 
         const exKeys = exList.map(e => e.key);
         if (exKeys.length > 0) {
+          // Fetch PRs with estimated_1rm for adaptive weight + achieved_at for overload
+          const threeWeeksAgo = new Date();
+          threeWeeksAgo.setDate(threeWeeksAgo.getDate() - 21);
+
           const { data: prs } = await supabase
             .from('personal_records')
-            .select('exercise_key, weight_kg')
+            .select('exercise_key, weight_kg, estimated_1rm, achieved_at')
             .eq('user_id', user.id)
-            .in('exercise_key', exKeys);
+            .in('exercise_key', exKeys)
+            .order('achieved_at', { ascending: false });
 
           if (prs && prs.length > 0) {
             const weightMap: Record<string, number> = {};
+            const rmMap: Record<string, number> = {};
+
             prs.forEach(pr => {
               if (pr.exercise_key && pr.weight_kg) {
-                weightMap[pr.exercise_key] = Number(pr.weight_kg);
+                if (!weightMap[pr.exercise_key]) weightMap[pr.exercise_key] = Number(pr.weight_kg);
+              }
+              if (pr.exercise_key && pr.estimated_1rm) {
+                if (!rmMap[pr.exercise_key] || Number(pr.estimated_1rm) > rmMap[pr.exercise_key]) {
+                  rmMap[pr.exercise_key] = Number(pr.estimated_1rm);
+                }
               }
             });
+
             setLastWeights(weightMap);
+            setPrRmMap(rmMap);
+
+            // ── Progressive Overload check ──
+            // If same exercise hit target weight 3+ times in last 3 weeks → suggest increase
+            const recentPRs = prs.filter(pr => pr.achieved_at && new Date(pr.achieved_at) >= threeWeeksAgo);
+            const countByEx: Record<string, number> = {};
+            recentPRs.forEach(pr => {
+              countByEx[pr.exercise_key] = (countByEx[pr.exercise_key] || 0) + 1;
+            });
+
+            const suggestions: Record<string, { ready: boolean; suggestion: string }> = {};
+            exKeys.forEach(key => {
+              const count = countByEx[key] || 0;
+              const curWeight = weightMap[key] || 0;
+              if (count >= 3 && curWeight > 0) {
+                const nextWeight = Math.round((curWeight + 2.5) / 2.5) * 2.5;
+                suggestions[key] = {
+                  ready: true,
+                  suggestion: `Ready to progress → try ${nextWeight}kg (+2.5kg)`,
+                };
+              } else if (count >= 2) {
+                suggestions[key] = {
+                  ready: false,
+                  suggestion: `${count}/3 consistent sessions — almost ready to increase`,
+                };
+              }
+            });
+            setOverloadSuggestion(suggestions);
           }
         }
+
+        // Store readiness score for adaptive weight
+        if (checkin?.readiness_score) setReadinessScore(checkin.readiness_score);
       } catch (err) {
         console.error('Failed to load exercises:', err);
       }
@@ -93,18 +142,53 @@ const LogPage = () => {
     loadExercises();
   }, [lang]);
 
+  // ── Adaptive weight functions (same algorithm as Workout.tsx) ──
+  const intensityFromSets = (setsStr: string): number => {
+    if (!setsStr || setsStr === 'Skip') return 0.65;
+    const match = setsStr.match(/(\d+)(?:–|-)(\d+)/);
+    if (match) {
+      const mid = (parseInt(match[1]) + parseInt(match[2])) / 2;
+      if (mid <= 4)  return 0.90;
+      if (mid <= 6)  return 0.85;
+      if (mid <= 8)  return 0.78;
+      if (mid <= 10) return 0.72;
+      if (mid <= 12) return 0.67;
+      if (mid <= 15) return 0.62;
+      return 0.55;
+    }
+    return 0.65;
+  };
+
+  const readinessModifier = (s: number): number =>
+    s >= 90 ? 1.02 : s >= 70 ? 1.00 : s >= 55 ? 0.85 : s >= 45 ? 0.75 : 0.60;
+
+  const getAdaptiveWeight = (exKey: string, setsStr?: string): number | null => {
+    const rm = prRmMap[exKey];
+    if (!rm || rm <= 0) return null;
+    const sets = setsStr || (checkinStatus === 'Green'
+      ? exercises[currentEx]?.green_sets
+      : exercises[currentEx]?.yellow_sets) || '';
+    const raw = rm * intensityFromSets(sets) * readinessModifier(readinessScore);
+    return Math.round(raw / 2.5) * 2.5;
+  };
+
   useEffect(() => {
     if (exercises.length === 0) return;
     const saved = getSetsForExercise(exercises[currentEx].key);
     if (saved.length > 0) {
       setLocalSets(saved);
     } else {
-      const lastWeight = lastWeights[exercises[currentEx].key] || 0;
+      // Prefer adaptive target weight, fallback to last PR weight
+      const todaySets = checkinStatus === 'Green'
+        ? exercises[currentEx]?.green_sets
+        : exercises[currentEx]?.yellow_sets;
+      const adaptive = getAdaptiveWeight(exercises[currentEx].key, todaySets);
+      const prefill = adaptive ?? lastWeights[exercises[currentEx].key] ?? 0;
       setLocalSets([
-        { set_number: 1, weight_kg: lastWeight, reps: 0, rpe: 0, is_warmup: false, saved: false },
+        { set_number: 1, weight_kg: prefill, reps: 0, rpe: 0, is_warmup: false, saved: false },
       ]);
     }
-  }, [currentEx, exercises, getSetsForExercise, lastWeights]);
+  }, [currentEx, exercises, getSetsForExercise, lastWeights, prRmMap, readinessScore, checkinStatus]);
 
   const addSet = () => {
     const last = localSets[localSets.length - 1];
@@ -296,11 +380,53 @@ const LogPage = () => {
           </div>
         )}
 
-        {lastWeights[exercises[currentEx]?.key] > 0 && !bestSet && (
-          <div className="text-xs text-muted-foreground bg-secondary rounded-lg px-3 py-2">
-            📊 Last PR: <span className="text-data-sm">{lastWeights[exercises[currentEx].key]} kg</span> — pre-filled above
-          </div>
-        )}
+        {/* ── Adaptive target weight badge ── */}
+        {(() => {
+          const ex = exercises[currentEx];
+          if (!ex) return null;
+          const todaySets = checkinStatus === 'Green' ? ex.green_sets : ex.yellow_sets;
+          const targetKg = getAdaptiveWeight(ex.key, todaySets);
+          const hasPR = !!prRmMap[ex.key];
+          if (targetKg && !bestSet) {
+            return (
+              <div className="rounded-lg px-3 py-2 text-xs flex items-center justify-between"
+                style={{ background: 'rgba(108,99,255,0.1)', border: '1px solid rgba(108,99,255,0.25)' }}>
+                <span style={{ color: 'hsl(245 100% 70%)' }}>
+                  🎯 Adaptive target: <span className="font-mono font-bold">{targetKg} kg</span>
+                  <span style={{ color: '#404070', marginLeft: 6 }}>
+                    ({Math.round(intensityFromSets(todaySets || '') * readinessModifier(readinessScore) * 100)}% of {prRmMap[ex.key]}kg 1RM)
+                  </span>
+                </span>
+              </div>
+            );
+          }
+          if (!hasPR && !bestSet) {
+            return (
+              <div className="text-xs text-muted-foreground bg-secondary rounded-lg px-3 py-2">
+                Log this exercise to unlock adaptive weight targets
+              </div>
+            );
+          }
+          return null;
+        })()}
+
+        {/* ── Progressive Overload suggestion ── */}
+        {(() => {
+          const ex = exercises[currentEx];
+          if (!ex) return null;
+          const ol = overloadSuggestion[ex.key];
+          if (!ol) return null;
+          return (
+            <div className="rounded-lg px-3 py-2 text-xs"
+              style={ol.ready
+                ? { background: 'rgba(186,255,41,0.08)', border: '1px solid rgba(186,255,41,0.25)' }
+                : { background: 'rgba(108,99,255,0.06)', border: '1px solid rgba(108,99,255,0.15)' }}>
+              <span style={{ color: ol.ready ? 'hsl(77 100% 58%)' : 'hsl(245 100% 70%)' }}>
+                {ol.ready ? '📈 ' : '⏳ '}{ol.suggestion}
+              </span>
+            </div>
+          );
+        })()}
       </motion.div>
 
       <div className="flex gap-3">
