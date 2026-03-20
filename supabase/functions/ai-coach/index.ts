@@ -97,7 +97,7 @@ RULES:
         "X-Title": "FitDecide AI Coach",
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-120b",                       // ฟรี
+        model: "openai/gpt-oss-120b",  // ฟรี
         // model: "anthropic/claude-3.5-haiku",            // เสียเงิน แต่ดีกว่า
         // model: "openai/gpt-4o-mini",                   // เสียเงิน แต่ดีกว่า
         messages: aiMessages,
