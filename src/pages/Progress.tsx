@@ -102,7 +102,7 @@ const ProgressPage = () => {
   }
 
   const getHeatColor = (status: string) => {
-    if (status === 'Green') return 'bg-status-green';
+    if (status === 'Green') return 'bg-accent';
     if (status === 'Yellow') return 'bg-status-yellow';
     if (status === 'Red') return 'bg-status-red';
     return 'bg-muted';
@@ -185,7 +185,7 @@ const ProgressPage = () => {
             <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-muted" /> No data</span>
             <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-status-red" /> Red</span>
             <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-status-yellow" /> Yellow</span>
-            <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-status-green" /> Green</span>
+            <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-accent" /> Green</span>
           </div>
         </div>
       )}
