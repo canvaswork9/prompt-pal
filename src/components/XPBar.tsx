@@ -29,8 +29,8 @@ const XPBar = ({ totalXP, level, streakDays, tierEmoji, tierName, compact }: XPB
         <div className="flex items-center gap-2.5">
           <span className="text-2xl">{tierEmoji}</span>
           <div>
-            <div className="font-semibold text-sm tracking-wide">Level {level} · {tierName}</div>
-            <div className="text-xs text-muted-foreground font-mono">{totalXP.toLocaleString()} XP</div>
+            <div className="font-semibold text-sm tracking-tight">Level {level} · {tierName}</div>
+            <div className="text-label mt-0.5">{totalXP.toLocaleString()} XP</div>
           </div>
         </div>
         {streakDays > 0 && (
@@ -45,7 +45,7 @@ const XPBar = ({ totalXP, level, streakDays, tierEmoji, tierName, compact }: XPB
         )}
       </div>
       <div className="space-y-1.5">
-        <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
+        <div className="flex justify-between text-label">
           <span>{progress.current} / {progress.needed} XP</span>
           <span>Level {level + 1}</span>
         </div>
