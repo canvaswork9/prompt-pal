@@ -1,0 +1,29 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6C63FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#BAFF29;stop-opacity:1" />
+    </linearGradient>
+    <clipPath id="round-clip">
+      <rect width="512" height="512" rx="115" ry="115"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="115" ry="115" fill="#06060C"/>
+
+  <!-- Ring track -->
+  <circle cx="256" cy="256" r="175" fill="none" stroke="#111125" stroke-width="38"/>
+
+  <!-- Ring filled ~270deg gradient -->
+  <circle cx="256" cy="256" r="175" fill="none"
+    stroke="url(#ring-grad)"
+    stroke-width="38"
+    stroke-linecap="round"
+    stroke-dasharray="824 1100"
+    transform="rotate(-225 256 256)"/>
+
+  <!-- Lightning bolt -->
+  <path d="M288 100 L196 280 L256 280 L224 412 L320 232 L260 232 Z"
+        fill="#BAFF29" opacity="0.96"/>
+</svg>
