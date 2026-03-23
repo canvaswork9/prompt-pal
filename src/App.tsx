@@ -22,6 +22,7 @@ import WeightPage from "./pages/Weight";
 import DashboardPage from "./pages/Dashboard";
 import LongevityPage from "./pages/Longevity";
 import NotFound from "./pages/NotFound";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import AppSidebar from "./components/AppSidebar";
 import BottomNav from "./components/BottomNav";
 
@@ -99,6 +100,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AppLayout>
+          <ErrorBoundary>
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<AuthPage />} />
@@ -117,6 +119,7 @@ const App = () => (
             <Route path="/settings"   element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </ErrorBoundary>
         </AppLayout>
       </BrowserRouter>
     </TooltipProvider>
