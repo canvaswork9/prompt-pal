@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     // Fetch user context
     const [profileRes, checkinsRes, prsRes] = await Promise.all([
       supabase.from("user_profiles")
-        .select("display_name, age, fitness_goal, experience, weight_kg, height_cm, activity_level, language")
+        .select("display_name, age, sex, fitness_goal, experience, weight_kg, height_cm, activity_level, language")
         .eq("id", userId).maybeSingle(),
       supabase.from("daily_checkins")
         .select("date, readiness_score, status, training_split, sleep_hours")
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
           Number(profile.weight_kg),
           Number((profile as any).height_cm),
           Number(profile.age),
-          "male",
+          (profile as any).sex ?? "other",
           (profile as any).activity_level || "moderate"
         )
       : null;
@@ -97,8 +97,9 @@ RULES:
         "X-Title": "FitDecide AI Coach",
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-120b",  // ฟรี
+          model: "openai/gpt-oss-120b",  // ฟรี
         // model: "anthropic/claude-3.5-haiku",            // เสียเงิน แต่ดีกว่า
+        // model: "anthropic/claude-3.5-haiku",
         // model: "openai/gpt-4o-mini",                   // เสียเงิน แต่ดีกว่า
         messages: aiMessages,
         max_tokens: 500,
