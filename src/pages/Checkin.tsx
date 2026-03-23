@@ -131,7 +131,7 @@ const StreakCard = ({
 
 // ── Main Page ────────────────────────────────────────────────────
 const CheckinPage = () => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { user } = useAuth();
   const {
     data, setData, result, submitted, setSubmitted,
@@ -184,9 +184,15 @@ const CheckinPage = () => {
     return <ResultCard result={result} data={data} onBack={() => setSubmitted(false)} />;
   }
 
-  const now     = new Date();
-  const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
-  const dateStr = now.toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
+  const now      = new Date();
+  const locale   = lang === 'th' ? 'th-TH' : 'en-US';
+  const dayName  = now.toLocaleDateString(locale, { weekday: 'long' });
+  const dateStr  = now.toLocaleDateString(locale, { day: 'numeric', month: 'long' });
+  const hour     = now.getHours();
+  const greetKey = hour < 12 ? 'greeting_morning'
+    : hour < 17 ? 'greeting_afternoon'
+    : hour < 21 ? 'greeting_evening'
+    : 'greeting_night';
 
   const checkedInToday = !!existingId;
 
@@ -318,7 +324,7 @@ const CheckinPage = () => {
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <h1 className="text-display-hero text-foreground leading-none">
-            {t('greeting')},<br />
+            {t(greetKey)},<br />
             <span style={{ color: 'hsl(var(--primary))' }}>
               {displayName || user?.email?.split('@')[0] || 'You'}
             </span>
