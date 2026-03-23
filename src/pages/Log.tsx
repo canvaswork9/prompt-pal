@@ -16,10 +16,11 @@ import RestTimer from '@/components/RestTimer';
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const LogPage = () => {
+  const [selectedDate, setSelectedDate] = useState(todayStr());
   const { lang } = useLanguage();
   const navigate = useNavigate();
   const logEnabled = useFeatureFlag('progressive_overload');
-  const { loading, saving, saveSet, autoSaveDuration, finishSession, getSetsForExercise, sessionStartFromDB } = useWorkout();
+  const { loading, saving, saveSet, autoSaveDuration, finishSession, getSetsForExercise, sessionStartFromDB, dateToUse } = useWorkout(selectedDate);
   const [exercises, setExercises] = useState<{ key: string; name: string; type: string; green_sets?: string; yellow_sets?: string; muscles?: string }[]>([]);
   const [checkinStatus, setCheckinStatus] = useState<string>('Yellow');
   const [currentEx, setCurrentEx] = useState(0);
@@ -257,6 +258,33 @@ const LogPage = () => {
     <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6">
       <div>
         <h1 className="text-display text-2xl">Session Log</h1>
+
+        {/* Date selector */}
+        <div className="flex items-center gap-3 mt-3">
+          <label className="text-sm text-muted-foreground whitespace-nowrap">Date</label>
+          <input
+            type="date"
+            value={selectedDate}
+            max={todayStr()}
+            onChange={e => setSelectedDate(e.target.value)}
+            className="flex-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+          />
+          {selectedDate !== todayStr() && (
+            <button
+              onClick={() => setSelectedDate(todayStr())}
+              className="text-xs text-primary underline underline-offset-2 whitespace-nowrap"
+            >
+              Back to today
+            </button>
+          )}
+        </div>
+
+        {selectedDate !== todayStr() && (
+          <p className="text-xs text-muted-foreground bg-secondary/60 rounded-lg px-3 py-2 mt-2">
+            📅 Logging for {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+          </p>
+        )}
+      </div>
         <p className="text-sm text-muted-foreground">Today · {exercises.length} exercises</p>
       </div>
 
