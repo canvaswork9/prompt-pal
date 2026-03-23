@@ -184,53 +184,31 @@ export function useGamification() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const today = new Date().toISOString().slice(0, 10);
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    // Use atomic DB function to avoid race conditions from multiple devices
+    const { data, error } = await supabase.rpc('update_streak', { p_user_id: user.id });
+    if (error) { console.error('updateStreak RPC error:', error); return; }
 
-    const { data: g } = await supabase.from('user_gamification')
-      .select('streak_days, longest_streak, last_checkin')
-      .eq('id', user.id)
-      .maybeSingle();
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result) return;
 
-    if (!g) return;
-
-    let newStreak = 1;
-    if (g.last_checkin === yesterday) {
-      newStreak = (g.streak_days ?? 0) + 1;
-    } else if (g.last_checkin === today) {
-      newStreak = g.streak_days ?? 1;
-    }
-
-    const longestStreak = Math.max(newStreak, g.longest_streak ?? 0);
-
-    await supabase.from('user_gamification').update({
-      streak_days: newStreak,
-      longest_streak: longestStreak,
-      last_checkin: today,
-      updated_at: new Date().toISOString(),
-    }).eq('id', user.id);
+    const newStreak     = result.new_streak as number;
+    const longestStreak = result.longest_streak as number;
+    const milestoneXP   = result.milestone_xp as number;
 
     setState(s => ({ ...s, streakDays: newStreak, longestStreak }));
 
-    // Award streak milestones
-    const streakMilestones = [
-      { days: 3, key: 'streak_3', xp: XP_AWARDS.streak_3 },
-      { days: 7, key: 'streak_7', xp: XP_AWARDS.streak_7 },
-      { days: 14, key: 'streak_14', xp: XP_AWARDS.streak_14 },
-      { days: 30, key: 'streak_30', xp: XP_AWARDS.streak_30 },
-    ];
-
-    for (const m of streakMilestones) {
-      if (newStreak === m.days) {
-        const existing = state.badges.find(b => b.badge_key === m.key);
-        if (!existing) {
-          await supabase.from('user_badges').upsert({
-            user_id: user.id,
-            badge_key: m.key,
-            badge_name: `${m.days}-Day Streak`,
-          }, { onConflict: 'user_id,badge_key' });
-          await awardXP(m.xp, 'streak_milestone', `${m.days}-day streak`);
-        }
+    // Award milestone XP + badge if the DB function says a milestone was hit
+    if (milestoneXP > 0) {
+      const milestoneKey = `streak_${newStreak}`;
+      const existing = state.badges.find(b => b.badge_key === milestoneKey);
+      if (!existing) {
+        const { error: badgeError } = await supabase.from('user_badges').upsert({
+          user_id: user.id,
+          badge_key: milestoneKey,
+          badge_name: `${newStreak}-Day Streak`,
+        }, { onConflict: 'user_id,badge_key' });
+        if (badgeError) { console.error('Failed to save badge:', badgeError); }
+        else { await awardXP(milestoneXP, 'streak_milestone', `${newStreak}-day streak`); }
       }
     }
 
