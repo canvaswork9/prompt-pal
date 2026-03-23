@@ -59,7 +59,7 @@ const OnboardingWrapper = () => {
 
       if (error) throw error;
 
-      await supabase.from('user_gamification').upsert({
+      const { error: gamError } = await supabase.from('user_gamification').upsert({
         id: user.id,
         total_xp: 0,
         current_level: 1,
@@ -68,6 +68,7 @@ const OnboardingWrapper = () => {
         longest_streak: 0,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
+      if (gamError) throw gamError;
 
     } catch (err) {
       console.error('Failed to save onboarding:', err);
