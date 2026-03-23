@@ -27,7 +27,7 @@ const MEAL_SLOTS: { key: MealSlotKey; icon: string; time: string; label: string 
 ];
 
 const MealPage = () => {
-  const { lang } = useLanguage();
+  const { lang, t } = useLanguage();
   const mealEnabled = useFeatureFlag('meal_planner');
   const [loading, setLoading] = useState(true);
   const [weightKg, setWeightKg] = useState(75);
@@ -325,12 +325,13 @@ const MealPage = () => {
             </div>
             <div className="flex gap-2">
               <Button variant={isEaten ? 'secondary' : 'accent'} size="sm" className="text-xs h-8" onClick={() => toggleEaten(slot.key)}>
-                {isEaten ? '↩ Undo' : '✓ Mark as Eaten'}
+                {isEaten ? `↩ ${t('undo_eaten')}` : `✓ ${t('mark_as_eaten')}`}
               </Button>
               {totalForSlot > 1 && (
                 <Button variant="outline" size="sm" className="text-xs h-8 gap-1.5" onClick={() => swapMeal(slot.key)}>
-                  <span>⟳</span>
-                  <span className="font-mono text-[11px]">{currentIdxForSlot + 1}/{totalForSlot}</span>
+                  <span>🔄</span>
+                  <span>{t('swap_menu')}</span>
+                  <span className="font-mono text-[11px] text-muted-foreground">({currentIdxForSlot + 1}/{totalForSlot})</span>
                 </Button>
               )}
             </div>
