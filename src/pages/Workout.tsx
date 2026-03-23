@@ -252,7 +252,6 @@ const WorkoutPage = () => {
         })}
       </div>
 
-      <Button variant="accent" className="w-full" onClick={() => navigate('/log')}>📝 Start Logging Sets</Button>
       {/* CTA — go to Log */}
       <div className="sticky bottom-20 lg:bottom-6 px-4 pb-2 pt-3 pointer-events-none">
         <Button
