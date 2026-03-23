@@ -154,12 +154,19 @@ const CheckinPage = () => {
               summaryColor: '',
               content: (
                 <div className="space-y-2 pt-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">40</span>
-                    <span className="font-mono text-primary">{data.resting_hr} {t('bpm')}</span>
-                    <span className="text-muted-foreground">100</span>
+                  <div className="flex justify-between text-sm items-center">
+                    <span className="text-[10px] text-muted-foreground">40<br/>low</span>
+                    <span className="font-mono text-primary text-base">{data.resting_hr} bpm
+                      <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                        {data.resting_hr <= 55 ? '✓ athlete' : data.resting_hr <= 65 ? '✓ normal' : data.resting_hr <= 75 ? '⚡ elevated' : '⚠ high'}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">100<br/>high</span>
                   </div>
                   <Slider value={[data.resting_hr]} onValueChange={v => setData(d => ({ ...d, resting_hr: v[0] }))} min={40} max={100} step={1} />
+                  <div className="flex justify-between text-[9px] text-muted-foreground/60 px-0.5">
+                    <span>≤55 athlete</span><span>56–65 normal</span><span>66–75 elevated</span><span>76+ high</span>
+                  </div>
                 </div>
               ),
             },
