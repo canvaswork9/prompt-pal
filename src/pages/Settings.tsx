@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { usePushNotification } from '@/hooks/usePushNotification';
 
 type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
 
@@ -19,6 +20,7 @@ const ACTIVITY_OPTIONS: { key: ActivityLevel; label: string; sub: string }[] = [
 
 const SettingsPage = () => {
   const { t, lang, setLang } = useLanguage();
+  const push = usePushNotification();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [age, setAge] = useState(25);
@@ -33,6 +35,7 @@ const SettingsPage = () => {
   const [savedHR, setSavedHR] = useState(60);
   const [savedActivity, setSavedActivity] = useState<ActivityLevel>('moderate');
   const [loading, setLoading] = useState(true);
+  const [notifTime, setNotifTime] = useState('07:00');
   const [saving, setSaving] = useState(false);
 
   // Body composition — saved to Supabase user_profiles
@@ -78,6 +81,7 @@ const SettingsPage = () => {
           setSavedName(n); setSavedAge(a); setSavedWeight(w); setSavedHR(hr);
           setSavedHeight(h); setSavedActivity(al as ActivityLevel);
           if (data.language === 'th' || data.language === 'en') setLang(data.language);
+          if ((data as any).notification_time) setNotifTime((data as any).notification_time.slice(0, 5));
 
           // Load body composition from Supabase
           if ((data as any).body_fat_pct) {
@@ -387,6 +391,56 @@ const SettingsPage = () => {
           </div>
         )}
         </div>}
+      </div>
+
+      {/* Notifications */}
+      <div className="bg-card rounded-xl card-shadow overflow-hidden">
+        <button
+          onClick={() => toggleSection('language')}
+          className="w-full flex items-center justify-between p-5 text-left"
+        >
+          <h2 className="font-semibold">🔔 Notifications</h2>
+          <span className="text-muted-foreground text-sm">{openSection === 'language' ? '▲' : '▼'}</span>
+        </button>
+        <div className="px-5 pb-5 space-y-4">
+          {!push.isSupported ? (
+            <p className="text-sm text-muted-foreground">Push notifications are not supported in this browser.</p>
+          ) : push.status === 'denied' ? (
+            <p className="text-sm text-status-red">Notifications blocked. Please enable in browser settings.</p>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Daily check-in reminder</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Get reminded to check in every day</p>
+                </div>
+                <Button
+                  variant={push.status === 'granted' ? 'default' : 'outline'}
+                  size="sm"
+                  disabled={push.loading}
+                  onClick={push.status === 'granted' ? push.unsubscribe : push.subscribe}
+                >
+                  {push.loading ? '...' : push.status === 'granted' ? '✓ On' : 'Enable'}
+                </Button>
+              </div>
+              {push.status === 'granted' && (
+                <div className="flex items-center gap-3">
+                  <label className="text-sm text-muted-foreground whitespace-nowrap">Reminder time</label>
+                  <input
+                    type="time"
+                    value={notifTime}
+                    onChange={async e => {
+                      setNotifTime(e.target.value);
+                      await push.saveNotificationTime(e.target.value);
+                      toast.success('Reminder time saved');
+                    }}
+                    className="flex-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Language */}
