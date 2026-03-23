@@ -127,17 +127,35 @@ const WeightPage = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not logged in');
 
-      await supabase.from('weight_logs').upsert({
+      const { error: upsertError } = await supabase.from('weight_logs').upsert({
         user_id: user.id,
         date: todayStr(),
         weight_kg: currentWeight,
         source: 'manual',
-      } as any, { onConflict: 'user_id,date' });
+      }, { onConflict: 'user_id,date' });
 
-      await supabase.from('user_profiles').update({
+      if (upsertError) throw upsertError;
+
+      const { error: profileError } = await supabase.from('user_profiles').update({
         weight_kg: currentWeight,
         updated_at: new Date().toISOString(),
       }).eq('id', user.id);
+
+      if (profileError) throw profileError;
+
+      // Reload history so chart updates immediately
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      const { data: freshHistory } = await supabase
+        .from('weight_logs')
+        .select('date, weight_kg')
+        .eq('user_id', user.id)
+        .gte('date', ninetyDaysAgo.toISOString().slice(0, 10))
+        .order('date', { ascending: true });
+
+      if (freshHistory?.length) {
+        setWeightHistory(freshHistory.map(h => ({ date: h.date, weight_kg: Number(h.weight_kg) })));
+      }
 
       setLoggedToday(true);
       toast.success('Weight logged!');
