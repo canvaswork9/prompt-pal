@@ -245,6 +245,18 @@ const WeightPage = () => {
       </div>
 
       {/* Weight Chart */}
+      {weightHistory.length === 0 && (
+        <div className="bg-card rounded-xl p-5 card-shadow text-center space-y-2">
+          <p className="text-2xl">⚖️</p>
+          <p className="font-semibold text-sm">No weight data yet</p>
+          <p className="text-xs text-muted-foreground">Log your weight above — the trend chart will appear after your first entry.</p>
+        </div>
+      )}
+      {weightHistory.length === 1 && (
+        <div className="bg-card rounded-xl p-5 card-shadow text-center space-y-1">
+          <p className="text-xs text-muted-foreground">Log at least 2 entries to see your trend chart.</p>
+        </div>
+      )}
       {weightHistory.length > 1 && (
         <div className="bg-card rounded-xl p-5 card-shadow">
           <h3 className="font-semibold mb-4">Weight Trend (90 days)</h3>
