@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ScatterChart, Scatter, Cell, ZAxis } from 'recharts';
+import { Button } from '@/components/ui/button';
 import { useGamification } from '@/hooks/useGamification';
 import XPBar from '@/components/XPBar';
 import ChallengeCards from '@/components/ChallengeCards';
@@ -147,6 +148,19 @@ const ProgressPage = () => {
       </div>
 
       <ChallengeCards streakDays={gam.streakDays} badges={gam.badges} greenDays={greenDays} workoutCount={workoutCount} />
+
+      {chartData.length === 0 && !gam.loading && (
+        <div className="bg-card rounded-2xl p-6 text-center card-shadow space-y-4">
+          <div className="text-4xl">📈</div>
+          <h3 className="font-semibold">No data yet</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Complete your first daily check-in to start tracking your readiness, streaks, and progress.
+          </p>
+          <Button variant="accent" className="w-full" onClick={() => window.location.href = '/app'}>
+            Start today's check-in →
+          </Button>
+        </div>
+      )}
 
       {chartData.length > 0 && (
         <div className="bg-card rounded-xl p-5 card-shadow">
