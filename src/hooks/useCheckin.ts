@@ -4,7 +4,7 @@ import { calculateReadiness } from '@/lib/decision-engine';
 import type { CheckinData, ReadinessResult } from '@/lib/types';
 import { toast } from 'sonner';
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+function todayStr() { return new Date().toISOString().slice(0, 10); }
 
 export function useCheckin() {
   const [loading, setLoading] = useState(true);
@@ -13,6 +13,9 @@ export function useCheckin() {
   const [submitted, setSubmitted] = useState(false);
   const [baselineHR, setBaselineHR] = useState<number>(60);
   const [displayName, setDisplayName] = useState('');
+  // Track today's date — if user leaves app open past midnight, currentDate changes
+  // and the load effect re-runs automatically
+  const [currentDate, setCurrentDate] = useState(todayStr);
   const [data, setData] = useState<CheckinData>({
     sleep_hours: 7,
     sleep_quality: 'ok',
@@ -23,6 +26,19 @@ export function useCheckin() {
   });
 
   // Load today's checkin if it exists
+  // Reset submitted state and reload if calendar day changes (e.g. app open past midnight)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newDate = todayStr();
+      if (newDate !== currentDate) {
+        setCurrentDate(newDate);
+        setSubmitted(false);
+        setExistingId(null);
+      }
+    }, 60_000); // check every minute
+    return () => clearInterval(interval);
+  }, [currentDate]);
+
   useEffect(() => {
     async function load() {
       try {
@@ -56,7 +72,7 @@ export function useCheckin() {
       }
     }
     load();
-  }, []);
+  }, [currentDate]);
 
   const result: ReadinessResult = calculateReadiness(data, baselineHR);
 
