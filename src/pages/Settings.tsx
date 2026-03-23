@@ -45,6 +45,10 @@ const SettingsPage = () => {
   const [savedBodyFatMethod, setSavedBodyFatMethod]   = useState<'dexa' | 'smart_scale' | 'estimate'>('estimate');
   const [savedBodyFatDate, setSavedBodyFatDate]       = useState('');
 
+  const [openSection, setOpenSection] = useState<'profile' | 'body' | 'language' | null>('profile');
+  const toggleSection = (s: 'profile' | 'body' | 'language') =>
+    setOpenSection(prev => prev === s ? null : s);
+
   const isDirty = name !== savedName
     || age !== savedAge
     || weight !== savedWeight
@@ -256,7 +260,18 @@ const SettingsPage = () => {
       </div>
 
       {/* Body Composition */}
-      <div className="bg-card rounded-xl p-5 card-shadow space-y-4">
+      <div className="bg-card rounded-xl card-shadow overflow-hidden">
+        <button
+          onClick={() => toggleSection('body')}
+          className="w-full flex items-center justify-between p-5 text-left"
+        >
+          <div>
+            <h2 className="font-semibold">Body Composition</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Fitness Age on Longevity page</p>
+          </div>
+          <span className="text-muted-foreground text-sm">{openSection === 'body' ? '▲' : '▼'}</span>
+        </button>
+        {openSection === 'body' && <div className="px-5 pb-5 space-y-4">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="font-semibold">Body Composition</h2>
@@ -370,6 +385,7 @@ const SettingsPage = () => {
             )}
           </div>
         )}
+        </div>}
       </div>
 
       {/* Language */}
