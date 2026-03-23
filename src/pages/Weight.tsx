@@ -35,6 +35,7 @@ const WeightPage = () => {
   const [loading, setLoading] = useState(true);
   const [currentWeight, setCurrentWeight] = useState(70);
   const [loggedToday, setLoggedToday] = useState(false);
+  const [logDate, setLogDate] = useState(todayStr());
   const [weightHistory, setWeightHistory] = useState<WeightEntry[]>([]);
   const [goal, setGoal] = useState<WeightGoal | null>(null);
   const [showGoalForm, setShowGoalForm] = useState(false);
@@ -127,12 +128,12 @@ const WeightPage = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not logged in');
 
-      // Check if entry already exists for today
+      // Check if entry already exists for selected date
       const { data: existing } = await supabase
         .from('weight_logs')
         .select('id')
         .eq('user_id', user.id)
-        .eq('date', todayStr())
+        .eq('date', logDate)
         .maybeSingle();
 
       if (existing) {
@@ -144,16 +145,18 @@ const WeightPage = () => {
       } else {
         const { error: insertError } = await supabase
           .from('weight_logs')
-          .insert({ user_id: user.id, date: todayStr(), weight_kg: currentWeight, source: 'manual' });
+          .insert({ user_id: user.id, date: logDate, weight_kg: currentWeight, source: 'manual' });
         if (insertError) throw insertError;
       }
 
-      const { error: profileError } = await supabase.from('user_profiles').update({
-        weight_kg: currentWeight,
-        updated_at: new Date().toISOString(),
-      }).eq('id', user.id);
-
-      if (profileError) throw profileError;
+      // Only update profile current weight if logging today
+      if (logDate === todayStr()) {
+        const { error: profileError } = await supabase.from('user_profiles').update({
+          weight_kg: currentWeight,
+          updated_at: new Date().toISOString(),
+        }).eq('id', user.id);
+        if (profileError) throw profileError;
+      }
 
       // Reload history so chart updates immediately
       const ninetyDaysAgo = new Date();
@@ -169,8 +172,8 @@ const WeightPage = () => {
         setWeightHistory(freshHistory.map(h => ({ date: h.date, weight_kg: Number(h.weight_kg) })));
       }
 
-      setLoggedToday(true);
-      toast.success('Weight logged!');
+      if (logDate === todayStr()) setLoggedToday(true);
+      toast.success(logDate === todayStr() ? 'Weight logged!' : `Weight logged for ${logDate}`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to log weight');
     } finally {
@@ -235,9 +238,38 @@ const WeightPage = () => {
       {/* Today's Entry */}
       <div className="bg-card rounded-xl p-5 card-shadow space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Log Today's Weight</h2>
-          {loggedToday && <span className="text-xs text-status-green font-medium bg-status-green/10 px-2 py-1 rounded-full">✓ Logged today</span>}
+          <h2 className="font-semibold">Log Weight</h2>
+          {logDate === todayStr() && loggedToday && (
+            <span className="text-xs text-status-green font-medium bg-status-green/10 px-2 py-1 rounded-full">✓ Logged today</span>
+          )}
         </div>
+
+        {/* Date picker */}
+        <div className="flex items-center gap-3">
+          <label className="text-sm text-muted-foreground whitespace-nowrap">Date</label>
+          <input
+            type="date"
+            value={logDate}
+            max={todayStr()}
+            onChange={e => setLogDate(e.target.value)}
+            className="flex-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+          />
+          {logDate !== todayStr() && (
+            <button
+              onClick={() => setLogDate(todayStr())}
+              className="text-xs text-primary underline underline-offset-2 whitespace-nowrap"
+            >
+              Back to today
+            </button>
+          )}
+        </div>
+
+        {logDate !== todayStr() && (
+          <p className="text-xs text-muted-foreground bg-secondary/60 rounded-lg px-3 py-2">
+            📅 Backdating entry for {new Date(logDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+          </p>
+        )}
+
         <div className="flex items-center gap-4">
           <div className="flex-1">
             <Slider value={[currentWeight]} onValueChange={v => setCurrentWeight(v[0])} min={30} max={200} step={0.1} />
@@ -252,7 +284,7 @@ const WeightPage = () => {
           <span className="text-sm text-muted-foreground">kg</span>
         </div>
         <Button variant="accent" onClick={handleLogWeight} disabled={saving}>
-          {saving ? 'Saving...' : loggedToday ? 'Update Weight' : 'Log Weight'}
+          {saving ? 'Saving...' : logDate !== todayStr() ? `Log for ${logDate}` : loggedToday ? 'Update Weight' : 'Log Weight'}
         </Button>
       </div>
 
