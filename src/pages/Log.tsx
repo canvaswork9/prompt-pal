@@ -15,12 +15,32 @@ import RestTimer from '@/components/RestTimer';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+const CARDIO_TYPES = [
+  { value: 'run',        label: '🏃 Run' },
+  { value: 'bike',       label: '🚴 Bike' },
+  { value: 'swim',       label: '🏊 Swim' },
+  { value: 'row',        label: '🚣 Row' },
+  { value: 'elliptical', label: '⚙️ Elliptical' },
+  { value: 'walk',       label: '🚶 Walk' },
+  { value: 'hiit',       label: '⚡ HIIT' },
+  { value: 'other',      label: '🏋️ Other' },
+];
+
 const LogPage = () => {
   const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [activeTab, setActiveTab] = useState<'strength' | 'cardio'>('strength');
+  // Cardio form
+  const [cardioType, setCardioType]         = useState('run');
+  const [cardioDuration, setCardioDuration] = useState('');
+  const [cardioDistance, setCardioDistance] = useState('');
+  const [cardioAvgHr, setCardioAvgHr]       = useState('');
+  const [cardioZoneAchieved, setCardioZoneAchieved] = useState('Zone 2');
+  const [cardioSaving, setCardioSaving]     = useState(false);
+  const [cardioSaved, setCardioSaved]       = useState(false);
   const { lang } = useLanguage();
   const navigate = useNavigate();
   const logEnabled = useFeatureFlag('progressive_overload');
-  const { loading, saving, saveSet, autoSaveDuration, finishSession, getSetsForExercise, sessionStartFromDB, dateToUse } = useWorkout(selectedDate);
+  const { loading, saving, saveSet, autoSaveDuration, finishSession, getSetsForExercise, sessionStartFromDB, dateToUse, createCardioSession } = useWorkout(selectedDate);
   const [exercises, setExercises] = useState<{ key: string; name: string; type: string; green_sets?: string; yellow_sets?: string; muscles?: string }[]>([]);
   const [checkinStatus, setCheckinStatus] = useState<string>('Yellow');
   const [currentEx, setCurrentEx] = useState(0);
@@ -235,6 +255,29 @@ const LogPage = () => {
     navigate('/progress');
   };
 
+  const handleSaveCardio = async () => {
+    if (!cardioDuration || Number(cardioDuration) <= 0) {
+      toast.error('กรุณาใส่ระยะเวลา');
+      return;
+    }
+    setCardioSaving(true);
+    const ok = await createCardioSession(
+      cardioType,
+      Number(cardioDuration),
+      cardioDistance ? Number(cardioDistance) : null,
+      cardioAvgHr ? Number(cardioAvgHr) : null,
+      '',
+      cardioZoneAchieved,
+    );
+    setCardioSaving(false);
+    if (ok) {
+      setCardioSaved(true);
+      setCardioDuration('');
+      setCardioDistance('');
+      setCardioAvgHr('');
+    }
+  };
+
   if (!logEnabled) return <DisabledFeaturePlaceholder name="Progressive Overload Log" />;
   if (loading) return <SkeletonLoader />;
 
@@ -287,7 +330,25 @@ const LogPage = () => {
         <p className="text-sm text-muted-foreground">{selectedDate === todayStr() ? 'Today' : selectedDate} · {exercises.length} exercises</p>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-2">
+      {/* Tab switcher */}
+      <div className="flex gap-2">
+        <Button
+          variant={activeTab === 'strength' ? 'default' : 'outline'}
+          size="sm" className="flex-1"
+          onClick={() => setActiveTab('strength')}
+        >
+          🏋️ Strength
+        </Button>
+        <Button
+          variant={activeTab === 'cardio' ? 'default' : 'outline'}
+          size="sm" className="flex-1"
+          onClick={() => setActiveTab('cardio')}
+        >
+          🏃 Cardio
+        </Button>
+      </div>
+
+      {activeTab === 'strength' && <div className="flex gap-2 overflow-x-auto pb-2">
         {exercises.map((ex, i) => (
           <Button key={ex.key} variant={i === currentEx ? 'default' : 'outline'} size="sm" onClick={() => setCurrentEx(i)} className="whitespace-nowrap">
             {i + 1}. {ex.name}
