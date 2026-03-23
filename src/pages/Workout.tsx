@@ -16,7 +16,7 @@ const WorkoutPage = () => {
   const videoEnabled = useFeatureFlag('workout_videos');
   const [expandedTips, setExpandedTips] = useState<string | null>(null);
   const [checkinData, setCheckinData] = useState<{
-    score: number; status: string; split: string; soreness: string;
+    score: number; status: string; split: string; soreness: string; cardio_zone: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [experience, setExperience] = useState<string>('intermediate');
@@ -53,6 +53,7 @@ const WorkoutPage = () => {
             status: checkin.status || 'Yellow',
             split: checkin.training_split || 'Lower Body',
             soreness: checkin.muscle_soreness || 'none',
+            cardio_zone: checkin.cardio_zone || '',
           });
         }
         setLoading(false);
@@ -97,7 +98,7 @@ const WorkoutPage = () => {
     );
   }
 
-  const { score, status, split, soreness } = checkinData;
+  const { score, status, split, soreness, cardio_zone } = checkinData;
   const exercises = selectExercises(split, status as any, experience as any, soreness as any);
 
   // ── Adaptive Load Algorithm ────────────────────────────────
@@ -169,6 +170,51 @@ const WorkoutPage = () => {
           </div>
         ))}
       </div>
+
+      {/* Cardio Zone Recommendation */}
+      {cardio_zone && (
+        <div className="bg-card rounded-xl p-4 card-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-sm">🏃 Cardio Recommendation</h2>
+            <Button
+              variant="outline" size="sm"
+              className="text-xs h-7"
+              onClick={() => navigate('/log?tab=cardio')}
+            >
+              Log Cardio →
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-secondary rounded-lg p-2.5 text-center">
+              <div className="text-[10px] text-muted-foreground uppercase mb-1">Zone</div>
+              <div className="font-mono font-bold text-sm text-primary">{cardio_zone}</div>
+            </div>
+            <div className="bg-secondary rounded-lg p-2.5 text-center">
+              <div className="text-[10px] text-muted-foreground uppercase mb-1">HR Target</div>
+              <div className="font-mono font-bold text-sm">
+                {cardio_zone.includes('4') ? '155–175' :
+                 cardio_zone.includes('3') ? '135–155' :
+                 cardio_zone.includes('2') ? '115–135' : '< 115'} bpm
+              </div>
+            </div>
+            <div className="bg-secondary rounded-lg p-2.5 text-center">
+              <div className="text-[10px] text-muted-foreground uppercase mb-1">Duration</div>
+              <div className="font-mono font-bold text-sm">
+                {cardio_zone.includes('4') ? '20–30' :
+                 cardio_zone.includes('3') ? '30–45' :
+                 cardio_zone.includes('2') ? '40–60' : '20–40'} min
+              </div>
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-2">
+            {cardio_zone === 'Zone 3–4' ? 'High intensity — intervals or tempo run. Keep HR in range.' :
+             cardio_zone === 'Zone 2–3' ? 'Moderate intensity — steady state, conversational pace.' :
+             cardio_zone === 'Zone 2 optional' ? 'Easy cardio only — do not push above Zone 2 today.' :
+             cardio_zone === 'Zone 1–2' ? 'Light movement only — walk or gentle bike.' :
+             'Zone 1 only — active recovery. Very light movement.'}
+          </p>
+        </div>
+      )}
 
       <div className="space-y-4">
         {exercises.length === 0 ? (
