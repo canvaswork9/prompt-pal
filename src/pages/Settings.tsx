@@ -162,10 +162,11 @@ const SettingsPage = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      await supabase.from('user_profiles').update({
+      const { error: langError } = await supabase.from('user_profiles').update({
         language: newLang,
         updated_at: new Date().toISOString(),
       }).eq('id', user.id);
+      if (langError) throw langError;
       toast.success(newLang === 'th' ? 'เปลี่ยนภาษาแล้ว' : 'Language changed');
     } catch (err) {
       console.error('Failed to save language:', err);
