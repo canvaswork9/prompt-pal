@@ -348,7 +348,8 @@ const LogPage = () => {
         </Button>
       </div>
 
-      {activeTab === 'strength' && <div className="flex gap-2 overflow-x-auto pb-2">
+      {activeTab === 'strength' && <>
+      <div className="flex gap-2 overflow-x-auto pb-2">
         {exercises.map((ex, i) => (
           <Button key={ex.key} variant={i === currentEx ? 'default' : 'outline'} size="sm" onClick={() => setCurrentEx(i)} className="whitespace-nowrap">
             {i + 1}. {ex.name}
@@ -525,6 +526,71 @@ const LogPage = () => {
           <Button variant="accent" onClick={handleFinish} className="flex-1">✓ Finish Session</Button>
         )}
       </div>
+      </>}
+
+      {/* Cardio Tab */}
+      {activeTab === 'cardio' && (
+        <div className="bg-card rounded-xl p-5 card-shadow space-y-4">
+          {cardioSaved ? (
+            <div className="text-center py-6 space-y-2">
+              <div className="text-4xl">✅</div>
+              <p className="font-semibold">Cardio logged!</p>
+              <Button variant="outline" size="sm" onClick={() => setCardioSaved(false)}>Log another</Button>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="text-sm text-muted-foreground block mb-2">Type</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {CARDIO_TYPES.map(ct => (
+                    <button key={ct.value} onClick={() => setCardioType(ct.value)}
+                      className={`flex flex-col items-center gap-1 py-2 px-1 rounded-lg text-xs font-medium transition-colors ${
+                        cardioType === ct.value
+                          ? 'bg-primary/15 border border-primary/40 text-primary'
+                          : 'bg-secondary border border-transparent text-muted-foreground'
+                      }`}>
+                      <span>{ct.label.split(' ')[0]}</span>
+                      <span>{ct.label.split(' ').slice(1).join(' ')}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm text-muted-foreground block mb-1">Duration (min) *</label>
+                  <Input type="number" inputMode="numeric" min="1" max="360"
+                    value={cardioDuration} onChange={e => setCardioDuration(e.target.value)}
+                    placeholder="e.g. 45" className="font-mono" />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground block mb-1">Distance (km)</label>
+                  <Input type="number" inputMode="decimal" min="0" step="0.1"
+                    value={cardioDistance} onChange={e => setCardioDistance(e.target.value)}
+                    placeholder="e.g. 5.0" className="font-mono" />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground block mb-1">Avg HR (bpm)</label>
+                  <Input type="number" inputMode="numeric" min="60" max="220"
+                    value={cardioAvgHr} onChange={e => setCardioAvgHr(e.target.value)}
+                    placeholder="e.g. 145" className="font-mono" />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground block mb-1">Zone achieved</label>
+                  <select value={cardioZoneAchieved} onChange={e => setCardioZoneAchieved(e.target.value)}
+                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary">
+                    {['Zone 1', 'Zone 2', 'Zone 2–3', 'Zone 3', 'Zone 3–4', 'Zone 4', 'Zone 5'].map(z => (
+                      <option key={z} value={z}>{z}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <Button onClick={handleSaveCardio} disabled={cardioSaving} className="w-full">
+                {cardioSaving ? 'Saving...' : '💾 Save Cardio Session'}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };
