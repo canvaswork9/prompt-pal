@@ -59,7 +59,7 @@ const SettingsPage = () => {
         if (!user) { setLoading(false); return; }
         const { data } = await supabase
           .from('user_profiles')
-          .select('display_name, age, weight_kg, baseline_hr, language, height_cm, activity_level')
+          .select('display_name, age, weight_kg, baseline_hr, language, height_cm, activity_level, body_fat_pct, body_fat_method, body_fat_date')
           .eq('id', user.id)
           .maybeSingle();
         if (data) {
