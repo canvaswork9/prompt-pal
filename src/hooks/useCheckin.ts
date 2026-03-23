@@ -45,15 +45,21 @@ export function useCheckin() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { setLoading(false); return; }
 
-        const [{ data: checkin }, { data: profile }] = await Promise.all([
+        const yesterdayDate = new Date();
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
+
+        const [{ data: checkin }, { data: profile }, { data: yesterday }] = await Promise.all([
           supabase.from('daily_checkins').select('*').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
           supabase.from('user_profiles').select('baseline_hr, display_name').eq('id', user.id).maybeSingle(),
+          supabase.from('daily_checkins').select('training_split, status, resting_hr, nutrition_load').eq('user_id', user.id).eq('date', yesterdayStr).maybeSingle(),
         ]);
 
         if (profile?.baseline_hr) setBaselineHR(profile.baseline_hr);
         if (profile?.display_name) setDisplayName(profile.display_name);
 
         if (checkin) {
+          // Today's checkin already exists — restore it
           setData({
             sleep_hours: Number(checkin.sleep_hours),
             sleep_quality: (checkin.sleep_quality as CheckinData['sleep_quality']) || 'ok',
@@ -64,6 +70,24 @@ export function useCheckin() {
           });
           setExistingId(checkin.id);
           if (checkin.readiness_score) setSubmitted(true);
+        } else if (yesterday) {
+          // Smart defaults from yesterday's data
+          // yesterday_training = what they actually did yesterday (from training_split)
+          const splitToTraining = (split: string): CheckinData['yesterday_training'] => {
+            if (!split) return 'none';
+            const s = split.toLowerCase();
+            if (s.includes('upper')) return 'upper';
+            if (s.includes('lower')) return 'lower';
+            if (s.includes('full') || s.includes('light')) return 'full';
+            if (s.includes('cardio') || s.includes('recovery')) return 'cardio';
+            return 'none';
+          };
+          setData(prev => ({
+            ...prev,
+            yesterday_training: splitToTraining(yesterday.training_split || ''),
+            resting_hr: yesterday.resting_hr ?? prev.resting_hr,
+            nutrition_load: (yesterday.nutrition_load as CheckinData['nutrition_load']) || prev.nutrition_load,
+          }));
         }
         setLoading(false);
       } catch (err) {
