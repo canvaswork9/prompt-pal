@@ -114,6 +114,7 @@ export function useWorkout(targetDate?: string) {
     avgHr: number | null,
     zoneTarget: string,
     zoneAchieved: string,
+    avgInclinePct: number | null = null,
   ): Promise<boolean> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
@@ -135,6 +136,7 @@ export function useWorkout(targetDate?: string) {
       avg_hr: avgHr,
       zone_target: zoneTarget,
       zone_achieved: zoneAchieved,
+      avg_incline_pct: avgInclinePct,
       checkin_id: checkin?.id || null,
       readiness_score: checkin?.readiness_score || null,
       completed: true,
