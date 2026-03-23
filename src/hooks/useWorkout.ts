@@ -21,7 +21,7 @@ export interface ExerciseLog {
   sets: WorkingSet[];
 }
 
-export function useWorkout() {
+export function useWorkout(targetDate?: string) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [checkinId, setCheckinId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,6 +29,7 @@ export function useWorkout() {
   const [exerciseLogs, setExerciseLogs] = useState<Map<string, WorkingSet[]>>(new Map());
   // Real start time from DB — so elapsed is accurate even after leaving and returning
   const [sessionStartFromDB, setSessionStartFromDB] = useState<number | null>(null);
+  const dateToUse = targetDate || todayStr();
 
   // Load or create today's workout session
   useEffect(() => {
@@ -41,17 +42,17 @@ export function useWorkout() {
           .from('daily_checkins')
           .select('id, readiness_score, status, training_split')
           .eq('user_id', user.id)
-          .eq('date', todayStr())
+          .eq('date', dateToUse)
           .maybeSingle();
 
         if (checkin) setCheckinId(checkin.id);
 
-        // Fetch today's session — include created_at so we can calculate real elapsed time
+        // Fetch session for target date
         const { data: session } = await supabase
           .from('workout_sessions')
           .select('id, created_at, duration_min, completed')
           .eq('user_id', user.id)
-          .eq('date', todayStr())
+          .eq('date', dateToUse)
           .maybeSingle();
 
         // Auto-complete any stale incomplete sessions from previous days
@@ -104,7 +105,7 @@ export function useWorkout() {
       }
     }
     init();
-  }, []);
+  }, [dateToUse]);
 
   const ensureSession = useCallback(async (): Promise<string | null> => {
     if (sessionId) return sessionId;
@@ -116,14 +117,14 @@ export function useWorkout() {
       .from('daily_checkins')
       .select('id, readiness_score, training_split')
       .eq('user_id', user.id)
-      .eq('date', todayStr())
+      .eq('date', dateToUse)
       .maybeSingle();
 
     const { data: newSession, error } = await supabase
       .from('workout_sessions')
       .insert({
         user_id: user.id,
-        date: todayStr(),
+        date: dateToUse,
         checkin_id: checkin?.id || null,
         readiness_score: checkin?.readiness_score || null,
         split: checkin?.training_split || null,
