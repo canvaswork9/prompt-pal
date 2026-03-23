@@ -107,6 +107,44 @@ export function useWorkout(targetDate?: string) {
     init();
   }, [dateToUse]);
 
+  const createCardioSession = useCallback(async (
+    cardioType: string,
+    durationMin: number,
+    distanceKm: number | null,
+    avgHr: number | null,
+    zoneTarget: string,
+    zoneAchieved: string,
+  ): Promise<boolean> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { data: checkin } = await supabase
+      .from('daily_checkins')
+      .select('id, readiness_score')
+      .eq('user_id', user.id)
+      .eq('date', dateToUse)
+      .maybeSingle();
+
+    const { error } = await supabase.from('workout_sessions').insert({
+      user_id: user.id,
+      date: dateToUse,
+      session_type: 'cardio',
+      cardio_type: cardioType,
+      duration_min: durationMin,
+      distance_km: distanceKm,
+      avg_hr: avgHr,
+      zone_target: zoneTarget,
+      zone_achieved: zoneAchieved,
+      checkin_id: checkin?.id || null,
+      readiness_score: checkin?.readiness_score || null,
+      completed: true,
+    });
+
+    if (error) { toast.error('Failed to save cardio session'); return false; }
+    toast.success('Cardio session saved! 🏃');
+    return true;
+  }, [dateToUse]);
+
   const ensureSession = useCallback(async (): Promise<string | null> => {
     if (sessionId) return sessionId;
 
