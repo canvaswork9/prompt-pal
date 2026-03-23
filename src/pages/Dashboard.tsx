@@ -27,7 +27,7 @@ const DashboardPage = () => {
   const [weightChart, setWeightChart] = useState<{ date: string; weight_kg: number }[]>([]);
   const [macroTotals, setMacroTotals] = useState({ protein: 0, carbs: 0, fat: 0 });
   const [tdeeTarget, setTdeeTarget] = useState<{ protein: number; carbs: number; fat: number; calories: number } | null>(null);
-  const [sessions, setSessions] = useState<{ date: string; split: string; duration: number; score: number; completed: boolean; volumeCals: number }[]>([]);
+  const [sessions, setSessions] = useState<{ date: string; split: string; duration: number; score: number; completed: boolean; volumeCals: number; sessionType: string; cardioType: string }[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -45,7 +45,7 @@ const DashboardPage = () => {
           supabase.from('user_profiles').select('weight_kg, height_cm, age, sex, activity_level, fitness_goal').eq('id', user.id).maybeSingle(),
           supabase.from('meal_logs').select('date, calories, protein_g, carbs_g, fat_g, eaten').eq('user_id', user.id).gte('date', startStr).eq('eaten', true),
           supabase.from('daily_checkins').select('date, readiness_score, status').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
-          supabase.from('workout_sessions').select('id, date, split, duration_min, readiness_score, completed').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
+          supabase.from('workout_sessions').select('id, date, split, duration_min, readiness_score, completed, session_type, cardio_type').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
           supabase.from('weight_logs').select('date, weight_kg').eq('user_id', user.id).gte('date', startStr).order('date', { ascending: true }),
         ]);
 
@@ -131,11 +131,13 @@ const DashboardPage = () => {
         setWorkoutCount(workouts?.length || 0);
         setSessions(workouts?.map(w => ({
           date: w.date,
-          split: w.split || '-',
+          split: (w as any).session_type === 'cardio' ? `${(w as any).cardio_type || 'cardio'} 🏃` : (w.split || '-'),
           duration: w.duration_min || 0,
           score: w.readiness_score || 0,
           completed: w.completed || false,
           volumeCals: calculateVolumeCalories(setsBySession.get(w.id) || []),
+          sessionType: (w as any).session_type || 'strength',
+          cardioType: (w as any).cardio_type || '',
         })) || []);
 
         // Readiness
