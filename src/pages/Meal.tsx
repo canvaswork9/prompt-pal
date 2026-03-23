@@ -214,9 +214,10 @@ const MealPage = () => {
       const existingId = dbLogIds.get(slot);
       if (existingId) {
         // Update existing log row
-        await supabase.from('meal_logs')
+        const { error: mealUpdateError } = await supabase.from('meal_logs')
           .update({ meal_name: mealName, calories: meal.kcal, protein_g: meal.protein, carbs_g: meal.carbs, fat_g: meal.fat })
           .eq('id', existingId);
+        if (mealUpdateError) throw mealUpdateError;
       } else {
         // No log row yet — create one with eaten=false to persist the selection
         const { data: inserted, error } = await supabase.from('meal_logs')
