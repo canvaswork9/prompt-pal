@@ -202,13 +202,23 @@ export function useGamification() {
       const milestoneKey = `streak_${newStreak}`;
       const existing = state.badges.find(b => b.badge_key === milestoneKey);
       if (!existing) {
-        const { error: badgeError } = await supabase.from('user_badges').upsert({
-          user_id: user.id,
-          badge_key: milestoneKey,
-          badge_name: `${newStreak}-Day Streak`,
-        }, { onConflict: 'user_id,badge_key' });
-        if (badgeError) { console.error('Failed to save badge:', badgeError); }
-        else { await awardXP(milestoneXP, 'streak_milestone', `${newStreak}-day streak`); }
+        // Check before insert to avoid onConflict dependency
+        const { data: existingBadge } = await supabase
+          .from('user_badges')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('badge_key', milestoneKey)
+          .maybeSingle();
+
+        if (!existingBadge) {
+          const { error: badgeError } = await supabase.from('user_badges').insert({
+            user_id: user.id,
+            badge_key: milestoneKey,
+            badge_name: `${newStreak}-Day Streak`,
+          });
+          if (badgeError) { console.error('Failed to save badge:', badgeError); }
+          else { await awardXP(milestoneXP, 'streak_milestone', `${newStreak}-day streak`); }
+        }
       }
     }
 
