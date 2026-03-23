@@ -1,269 +1,271 @@
-import { motion } from 'framer-motion';
-import { useLanguage } from '@/lib/i18n';
-import { selectExercises, EXERCISE_DB } from '@/lib/exercise-db';
 import { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import SkeletonLoader from '@/components/SkeletonLoader';
-import { useFeatureFlag } from '@/hooks/useFeatureFlag';
+import { estimated1RM } from '@/lib/decision-engine';
+import { toast } from 'sonner';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-const WorkoutPage = () => {
-  const { t, lang } = useLanguage();
-  const navigate = useNavigate();
-  const videoEnabled = useFeatureFlag('workout_videos');
-  const [expandedTips, setExpandedTips] = useState<string | null>(null);
-  const [checkinData, setCheckinData] = useState<{
-    score: number; status: string; split: string; soreness: string;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [experience, setExperience] = useState<string>('intermediate');
-  const [prMap, setPrMap] = useState<Record<string, number>>({}); // exercise_key → estimated_1rm
+export interface WorkingSet {
+  id?: string;
+  set_number: number;
+  weight_kg: number;
+  reps: number;
+  rpe: number;
+  is_warmup: boolean;
+  saved: boolean;
+}
 
+export interface ExerciseLog {
+  exercise_key: string;
+  exercise_name: string;
+  sets: WorkingSet[];
+}
+
+export function useWorkout(targetDate?: string) {
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [checkinId, setCheckinId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [exerciseLogs, setExerciseLogs] = useState<Map<string, WorkingSet[]>>(new Map());
+  // Real start time from DB — so elapsed is accurate even after leaving and returning
+  const [sessionStartFromDB, setSessionStartFromDB] = useState<number | null>(null);
+  const dateToUse = targetDate || todayStr();
+
+  // Load or create today's workout session
   useEffect(() => {
-    async function load() {
+    async function init() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { setLoading(false); return; }
 
-        const [{ data: checkin }, { data: profile }, { data: prs }] = await Promise.all([
-          supabase.from('daily_checkins').select('*').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
-          supabase.from('user_profiles').select('experience').eq('id', user.id).maybeSingle(),
-          supabase.from('personal_records').select('exercise_key, estimated_1rm').eq('user_id', user.id),
-        ]);
+        const { data: checkin } = await supabase
+          .from('daily_checkins')
+          .select('id, readiness_score, status, training_split')
+          .eq('user_id', user.id)
+          .eq('date', dateToUse)
+          .maybeSingle();
 
-        if (profile?.experience) setExperience(profile.experience);
+        if (checkin) setCheckinId(checkin.id);
 
-        // Build PR map: best 1RM per exercise
-        const map: Record<string, number> = {};
-        for (const pr of prs ?? []) {
-          if (pr.exercise_key && pr.estimated_1rm) {
-            if (!map[pr.exercise_key] || pr.estimated_1rm > map[pr.exercise_key]) {
-              map[pr.exercise_key] = Number(pr.estimated_1rm);
-            }
+        // Fetch session for target date
+        const { data: session } = await supabase
+          .from('workout_sessions')
+          .select('id, created_at, duration_min, completed')
+          .eq('user_id', user.id)
+          .eq('date', dateToUse)
+          .maybeSingle();
+
+        // Auto-complete any stale incomplete sessions from previous days
+        // This prevents old sessions from polluting the Dashboard
+        const { error: staleError } = await supabase
+          .from('workout_sessions')
+          .update({ completed: true })
+          .eq('user_id', user.id)
+          .eq('completed', false)
+          .lt('date', todayStr());
+        if (staleError) console.error('Failed to clean up stale sessions:', staleError);
+
+        if (session) {
+          setSessionId(session.id);
+
+          // Restore sessionStart from DB created_at so elapsed time is accurate
+          // even if user left and came back
+          const createdAt = new Date(session.created_at).getTime();
+          setSessionStartFromDB(createdAt);
+
+          const { data: sets } = await supabase
+            .from('exercise_sets')
+            .select('*')
+            .eq('session_id', session.id)
+            .order('set_number');
+
+          if (sets && sets.length > 0) {
+            const map = new Map<string, WorkingSet[]>();
+            sets.forEach(s => {
+              const key = s.exercise_key;
+              const existing = map.get(key) || [];
+              existing.push({
+                id: s.id,
+                set_number: s.set_number,
+                weight_kg: Number(s.weight_kg) || 0,
+                reps: s.reps || 0,
+                rpe: s.rpe || 0,
+                is_warmup: s.is_warmup || false,
+                saved: true,
+              });
+              map.set(key, existing);
+            });
+            setExerciseLogs(map);
           }
-        }
-        setPrMap(map);
-
-        if (checkin && checkin.readiness_score) {
-          setCheckinData({
-            score: checkin.readiness_score,
-            status: checkin.status || 'Yellow',
-            split: checkin.training_split || 'Lower Body',
-            soreness: checkin.muscle_soreness || 'none',
-          });
         }
         setLoading(false);
       } catch (err) {
-        console.error('Failed to load workout data:', err);
+        console.error('Failed to initialize workout session:', err);
         setLoading(false);
       }
     }
-    load();
-  }, []);
+    init();
+  }, [dateToUse]);
 
-  if (loading) return <SkeletonLoader />;
+  const ensureSession = useCallback(async (): Promise<string | null> => {
+    if (sessionId) return sessionId;
 
-  if (!checkinData) {
-    return (
-      <div className="max-w-3xl mx-auto p-6 space-y-4">
-        <div className="bg-card rounded-2xl p-6 text-center space-y-4 card-shadow">
-          <div className="text-4xl">⚡</div>
-          <h1 className="font-display text-xl font-bold">Check in first</h1>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            Your workout plan is personalised to today's readiness score.<br />
-            Takes about 60 seconds — sleep, HR, and soreness.
-          </p>
-          <Button variant="accent" className="w-full" onClick={() => navigate('/app')}>
-            Start today's check-in →
-          </Button>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { icon: '😴', label: 'Sleep', desc: 'How rested?' },
-            { icon: '❤️', label: 'Heart rate', desc: 'Recovery signal' },
-            { icon: '💪', label: 'Soreness', desc: 'What to skip' },
-          ].map(({ icon, label, desc }) => (
-            <div key={label} className="bg-card rounded-xl p-3 text-center card-shadow">
-              <div className="text-2xl mb-1">{icon}</div>
-              <div className="text-xs font-semibold">{label}</div>
-              <div className="text-[10px] text-muted-foreground">{desc}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
 
-  const { score, status, split, soreness } = checkinData;
-  const exercises = selectExercises(split, status as any, experience as any, soreness as any);
+    const { data: checkin } = await supabase
+      .from('daily_checkins')
+      .select('id, readiness_score, training_split')
+      .eq('user_id', user.id)
+      .eq('date', dateToUse)
+      .maybeSingle();
 
-  // ── Adaptive Load Algorithm ────────────────────────────────
-  // Parse sets string to get rep range midpoint → intensity factor
-  const intensityFromSets = (setsStr: string): number => {
-    if (!setsStr || setsStr === 'Skip') return 0.65;
-    const match = setsStr.match(/(\d+)(?:–|-)(\d+)/);
-    if (match) {
-      const mid = (parseInt(match[1]) + parseInt(match[2])) / 2;
-      if (mid <= 4)  return 0.90;
-      if (mid <= 6)  return 0.85;
-      if (mid <= 8)  return 0.78;
-      if (mid <= 10) return 0.72;
-      if (mid <= 12) return 0.67;
-      if (mid <= 15) return 0.62;
-      return 0.55;
+    const { data: newSession, error } = await supabase
+      .from('workout_sessions')
+      .insert({
+        user_id: user.id,
+        date: dateToUse,
+        checkin_id: checkin?.id || null,
+        readiness_score: checkin?.readiness_score || null,
+        split: checkin?.training_split || null,
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      toast.error('Failed to create session');
+      return null;
     }
-    if (setsStr.includes('AMRAP')) return 0.60;
-    return 0.65;
+    setSessionId(newSession.id);
+    return newSession.id;
+  }, [sessionId]);
+
+  const saveSet = useCallback(async (
+    exerciseKey: string,
+    exerciseName: string,
+    set: WorkingSet
+  ) => {
+    setSaving(true);
+    try {
+      const sid = await ensureSession();
+      if (!sid) throw new Error('No session');
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not logged in');
+
+      const row = {
+        session_id: sid,
+        exercise_key: exerciseKey,
+        exercise_name: exerciseName,
+        set_number: set.set_number,
+        weight_kg: set.weight_kg,
+        reps: set.reps,
+        rpe: set.rpe,
+        is_warmup: set.is_warmup,
+      };
+
+      let savedId = set.id;
+      if (set.id) {
+        const { error } = await supabase.from('exercise_sets').update(row).eq('id', set.id);
+        if (error) throw error;
+      } else {
+        const { data: inserted, error } = await supabase.from('exercise_sets').insert(row).select('id').single();
+        if (error) throw error;
+        savedId = inserted.id;
+      }
+
+      setExerciseLogs(prev => {
+        const next = new Map(prev);
+        const sets = [...(next.get(exerciseKey) || [])];
+        const idx = sets.findIndex(s => s.set_number === set.set_number);
+        const updatedSet = { ...set, id: savedId, saved: true };
+        if (idx >= 0) sets[idx] = updatedSet;
+        else sets.push(updatedSet);
+        next.set(exerciseKey, sets);
+        return next;
+      });
+
+      await checkAndUpdatePR(user.id, exerciseKey, set.weight_kg, set.reps, sid);
+
+      toast.success(`Set ${set.set_number} saved`);
+      return true;
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save set');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [ensureSession]);
+
+  const checkAndUpdatePR = async (
+    userId: string,
+    exerciseKey: string,
+    weight: number,
+    reps: number,
+    sid: string
+  ) => {
+    const newE1RM = estimated1RM(weight, reps);
+    if (newE1RM <= 0) return;
+
+    const { data: existingPR } = await supabase
+      .from('personal_records')
+      .select('id, estimated_1rm')
+      .eq('user_id', userId)
+      .eq('exercise_key', exerciseKey)
+      .order('estimated_1rm', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!existingPR || newE1RM > Number(existingPR.estimated_1rm || 0)) {
+      const { error: prError } = await supabase.from('personal_records').insert({
+        user_id: userId,
+        exercise_key: exerciseKey,
+        weight_kg: weight,
+        reps: reps,
+        estimated_1rm: newE1RM,
+        session_id: sid,
+        achieved_at: todayStr(),
+      });
+      if (prError) { console.error('Failed to save PR:', prError); }
+      else { toast.success(`🏆 New PR! Est. 1RM: ${newE1RM} kg`, { duration: 4000 }); }
+    }
   };
 
-  const readinessModifier = (s: number): number =>
-    s >= 90 ? 1.02 :  // slight push for PR zone
-    s >= 70 ? 1.00 :
-    s >= 55 ? 0.85 :
-    s >= 45 ? 0.75 :
-              0.60;
+  const autoSaveDuration = useCallback(async (durationMin: number) => {
+    // Update duration on existing session without marking completed
+    // This lets Dashboard show elapsed time even if user never taps Finish
+    const sid = sessionId;
+    if (!sid) return;
+    const { error: durError } = await supabase
+      .from('workout_sessions')
+      .update({ duration_min: durationMin })
+      .eq('id', sid);
+    if (durError) console.error('Failed to save duration:', durError);
+  }, [sessionId]);
 
-  const calcTargetWeight = (exerciseKey: string, setsStr: string, s: number): number | null => {
-    const rm = prMap[exerciseKey];
-    if (!rm || rm <= 0) return null;
-    const raw = rm * intensityFromSets(setsStr) * readinessModifier(s);
-    return Math.round(raw / 2.5) * 2.5; // round to nearest 2.5kg
+  const finishSession = useCallback(async (durationMin?: number) => {
+    if (!sessionId) return;
+    const { error } = await supabase
+      .from('workout_sessions')
+      .update({ completed: true, duration_min: durationMin || null })
+      .eq('id', sessionId);
+    if (error) toast.error('Failed to finish session');
+    else toast.success('Session complete! 💪');
+  }, [sessionId]);
+
+  const getSetsForExercise = useCallback((key: string): WorkingSet[] => {
+    return exerciseLogs.get(key) || [];
+  }, [exerciseLogs]);
+
+  return {
+    loading,
+    saving,
+    sessionId,
+    sessionStartFromDB,
+    exerciseLogs,
+    saveSet,
+    autoSaveDuration,
+    finishSession,
+    getSetsForExercise,
   };
-
-  const isPrZone = score >= 88;
-
-  const getIntensityBands = (s: number) => [
-    { range: '85–100', icon: '🔥', desc: 'Push for PRs — your body is ready', active: s >= 85 },
-    { range: '70–84', icon: '✅', desc: 'Normal intensity — solid session', active: s >= 70 && s < 85 },
-    { range: '55–69', icon: '⚡', desc: 'Reduce load 15–20% — quality over weight', active: s >= 55 && s < 70 },
-    { range: '45–54', icon: '🛑', desc: 'Technique work only — no max effort', active: s >= 45 && s < 55 },
-    { range: '<45', icon: '😴', desc: 'Rest or mobility only', active: s < 45 },
-  ];
-
-  const intensityBands = getIntensityBands(score);
-  const statusColor = status === 'Green' ? 'bg-status-green-dim text-status-green' : status === 'Yellow' ? 'bg-status-yellow-dim text-status-yellow' : 'bg-status-red-dim text-status-red';
-  const loadNote = score >= 85 ? 'PR attempt!' : score >= 70 ? 'Normal load' : score >= 55 ? '–15% load' : '–30% load';
-
-  return (
-    <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-6">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-xl p-5 card-shadow">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <h1 className="text-display text-xl">TODAY: {split.toUpperCase()}</h1>
-            <p className="text-sm text-muted-foreground">Score {score} · {status} · ~55 min · {loadNote}</p>
-          </div>
-          <div className={`px-3 py-1 rounded-full text-sm font-medium ${statusColor}`}>● {status}</div>
-        </div>
-      </motion.div>
-
-      <div className="space-y-1">
-        {intensityBands.map(band => (
-          <div key={band.range} className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${band.active ? 'bg-primary/10 border border-primary/30' : ''}`}>
-            <span className="w-14 font-mono text-muted-foreground text-xs">{band.range}</span>
-            <span>{band.icon}</span>
-            <span className={band.active ? 'font-medium text-foreground' : 'text-muted-foreground'}>{band.desc}</span>
-            {band.active && <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded ml-auto">TODAY</span>}
-          </div>
-        ))}
-      </div>
-
-      <div className="space-y-4">
-        {exercises.length === 0 ? (
-          <div className="bg-card rounded-xl p-6 card-shadow text-center space-y-2">
-            <div className="text-4xl">😴</div>
-            <h3 className="font-semibold">Rest Day</h3>
-            <p className="text-sm text-muted-foreground">Your body needs recovery today. Light movement like walking or stretching is fine.</p>
-          </div>
-        ) : exercises.map((ex, i) => {
-          const todaySets = status === 'Green' ? ex.green_sets : ex.yellow_sets;
-          const targetKg  = calcTargetWeight(ex.key, todaySets, score);
-          const hasPR     = !!prMap[ex.key];
-
-          return (
-          <motion.div key={ex.key} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }} className="bg-card rounded-xl p-4 card-shadow hover:card-shadow-hover transition-shadow">
-            <div className="flex items-start justify-between mb-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-muted-foreground">{i + 1}</span>
-                  <h3 className="font-semibold">{lang === 'th' ? ex.name_th : ex.name_en}</h3>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-medium ${ex.type === 'compound' ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground'}`}>{ex.type}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">{ex.muscles}</p>
-              </div>
-              {isPrZone && hasPR && ex.type === 'compound' && (
-                <span className="text-[10px] px-2 py-1 rounded-full font-bold" style={{ background: 'rgba(186,255,41,0.12)', color: 'hsl(77 100% 58%)', border: '1px solid rgba(186,255,41,0.3)' }}>
-                  ⚡ PR ZONE
-                </span>
-              )}
-            </div>
-
-            {/* ── ADAPTIVE LOAD SUGGESTION ── */}
-            <div className="grid grid-cols-3 gap-2 my-3">
-              <div className="bg-secondary rounded-lg p-2 text-center">
-                <div className="text-[10px] text-muted-foreground uppercase">Sets × Reps</div>
-                <div className="font-mono font-semibold text-sm">{todaySets}</div>
-              </div>
-              <div className="bg-secondary rounded-lg p-2 text-center">
-                <div className="text-[10px] text-muted-foreground uppercase">Rest</div>
-                <div className="font-mono font-semibold text-sm">{ex.type === 'compound' ? '2 min' : '90s'}</div>
-              </div>
-              {/* Target weight — show if PR exists, else show loadNote */}
-              {targetKg ? (
-                <div className="rounded-lg p-2 text-center" style={{ background: 'rgba(108,99,255,0.1)', border: '1px solid rgba(108,99,255,0.25)' }}>
-                  <div className="text-[10px] uppercase" style={{ color: 'hsl(245 100% 70%)', opacity: 0.7 }}>TARGET</div>
-                  <div className="font-mono font-bold text-sm" style={{ color: 'hsl(245 100% 75%)' }}>{targetKg} kg</div>
-                </div>
-              ) : (
-                <div className="bg-secondary rounded-lg p-2 text-center">
-                  <div className="text-[10px] text-muted-foreground uppercase">Load</div>
-                  <div className="font-semibold text-sm">{loadNote}</div>
-                </div>
-              )}
-            </div>
-
-            {/* PR context line */}
-            {hasPR && (
-              <p className="text-[11px] mb-2" style={{ color: '#404070' }}>
-                Est. 1RM: <span style={{ color: 'hsl(245 100% 70%)', fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{prMap[ex.key]}kg</span>
-                {targetKg && <> · Target = {Math.round(intensityFromSets(todaySets) * readinessModifier(score) * 100)}% of 1RM</>}
-              </p>
-            )}
-            {!hasPR && ex.type === 'compound' && (
-              <p className="text-[11px] mb-2" style={{ color: '#2a2a50' }}>
-                Log this exercise to unlock personalised weight targets
-              </p>
-            )}
-
-            <button onClick={() => setExpandedTips(expandedTips === ex.key ? null : ex.key)} className="text-xs text-primary hover:text-primary/80 transition-colors">
-              {expandedTips === ex.key ? '▲ Hide Form Tips' : '▼ Form Tips'}
-            </button>
-            {expandedTips === ex.key && (
-              <motion.ul initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-2 space-y-1 text-xs text-muted-foreground">
-                {(lang === 'th' ? ex.form_tips_th : ex.form_tips_en).map((tip, j) => (
-                  <li key={j}>• {tip}</li>
-                ))}
-              </motion.ul>
-            )}
-          </motion.div>
-          );
-        })}
-      </div>
-
-      {/* CTA — go to Log */}
-      <div className="sticky bottom-20 lg:bottom-6 px-4 pb-2 pt-3 pointer-events-none">
-        <Button
-          variant="accent"
-          className="w-full pointer-events-auto shadow-lg"
-          onClick={() => navigate('/log')}
-        >
-          🏋️ Start logging sets →
-        </Button>
-      </div>
-    </div>
-  );
-};
-
-export default WorkoutPage;
+}
