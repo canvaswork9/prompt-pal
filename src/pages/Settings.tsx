@@ -40,6 +40,10 @@ const SettingsPage = () => {
   const [bodyFatMethod, setBodyFatMethod] = useState<'dexa' | 'smart_scale' | 'estimate'>('estimate');
   const [bodyFatDate, setBodyFatDate]     = useState('');
   const [bodyCompSaved, setBodyCompSaved] = useState(false);
+  // Last confirmed-saved values — shown as "Last saved" summary below the button
+  const [savedBodyFat, setSavedBodyFat]               = useState<number | ''>('');
+  const [savedBodyFatMethod, setSavedBodyFatMethod]   = useState<'dexa' | 'smart_scale' | 'estimate'>('estimate');
+  const [savedBodyFatDate, setSavedBodyFatDate]       = useState('');
 
   const isDirty = name !== savedName
     || age !== savedAge
@@ -72,9 +76,18 @@ const SettingsPage = () => {
           if (data.language === 'th' || data.language === 'en') setLang(data.language);
 
           // Load body composition from Supabase
-          if ((data as any).body_fat_pct)    setBodyFat(Number((data as any).body_fat_pct));
-          if ((data as any).body_fat_method) setBodyFatMethod((data as any).body_fat_method);
-          if ((data as any).body_fat_date)   setBodyFatDate((data as any).body_fat_date);
+          if ((data as any).body_fat_pct) {
+            setBodyFat(Number((data as any).body_fat_pct));
+            setSavedBodyFat(Number((data as any).body_fat_pct));
+          }
+          if ((data as any).body_fat_method) {
+            setBodyFatMethod((data as any).body_fat_method);
+            setSavedBodyFatMethod((data as any).body_fat_method);
+          }
+          if ((data as any).body_fat_date) {
+            setBodyFatDate((data as any).body_fat_date);
+            setSavedBodyFatDate((data as any).body_fat_date);
+          }
         }
       } catch (err) {
         console.error('Failed to load settings:', err);
@@ -125,6 +138,9 @@ const SettingsPage = () => {
         updated_at:      new Date().toISOString(),
       } as any).eq('id', user.id);
       if (error) throw error;
+      setSavedBodyFat(bodyFat);
+      setSavedBodyFatMethod(bodyFatMethod);
+      setSavedBodyFatDate(bodyFatDate);
       setBodyCompSaved(true);
       setTimeout(() => setBodyCompSaved(false), 2500);
       toast.success('Body composition saved!');
@@ -333,6 +349,27 @@ const SettingsPage = () => {
         >
           {bodyCompSaved ? '✓ Saved' : 'Save Body Composition'}
         </Button>
+
+        {/* Last saved summary */}
+        {savedBodyFat !== '' && (
+          <div className="rounded-lg px-3 py-2.5 flex items-center justify-between gap-3"
+            style={{ background: 'rgba(108,99,255,0.06)', border: '1px solid rgba(108,99,255,0.15)' }}>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-muted-foreground">Last saved</span>
+              <span className="text-sm font-mono font-bold" style={{ color: 'hsl(245 100% 72%)' }}>
+                {savedBodyFat}%
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  {savedBodyFatMethod === 'dexa' ? 'DEXA Scan' : savedBodyFatMethod === 'smart_scale' ? 'Smart Scale' : 'Estimate'}
+                </span>
+              </span>
+            </div>
+            {savedBodyFatDate && (
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {new Date(savedBodyFatDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Language */}
