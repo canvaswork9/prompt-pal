@@ -284,8 +284,7 @@ const LogPage = () => {
             📅 Logging for {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
           </p>
         )}
-      </div>
-        <p className="text-sm text-muted-foreground">Today · {exercises.length} exercises</p>
+        <p className="text-sm text-muted-foreground">{selectedDate === todayStr() ? 'Today' : selectedDate} · {exercises.length} exercises</p>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-2">
