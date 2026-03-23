@@ -15,7 +15,7 @@ const BC   = "'Barlow Condensed', sans-serif";
 const DM   = "'DM Sans', sans-serif";
 const MONO = "'JetBrains Mono', monospace";
 
-const TOTAL = 6;
+const TOTAL = 7;
 
 const OnboardingPage = ({ onComplete }: Props) => {
   const [step, setStep]   = useState(0);
@@ -25,6 +25,7 @@ const OnboardingPage = ({ onComplete }: Props) => {
   const [age,        setAge]    = useState(28);
   const [sex,        setSex]    = useState<Sex>('other');
   const [height,     setHeight] = useState(170);
+  const [weight,     setWeight] = useState(70);
   const [goal,       setGoal]   = useState<FitnessGoal>('general');
   const [experience, setExp]    = useState<ExperienceLevel>('intermediate');
 
@@ -34,7 +35,7 @@ const OnboardingPage = ({ onComplete }: Props) => {
 
   const finish = () => onComplete({
     display_name: name.trim() || 'Athlete',
-    age, sex, fitness_goal: goal, experience, height_cm: height,
+    age, sex, fitness_goal: goal, experience, height_cm: height, weight_kg: weight,
   });
 
   const slide = {
@@ -208,8 +209,20 @@ const OnboardingPage = ({ onComplete }: Props) => {
               </div>
             )}
 
-            {/* ── STEP 3: SEX ── */}
+            {/* ── STEP 3: WEIGHT ── */}
             {step === 3 && (
+              <div>
+                <StepLabel n={3} />
+                <H>CURRENT<br />WEIGHT</H>
+                <Sub>Used to calculate your calorie targets and macros.</Sub>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <Spinner label="Weight" val={weight} min={30} max={250} color="hsl(38 88% 58%)" unit="kg" onChange={setWeight} />
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 4: SEX ── */}
+            {step === 4 && (
               <div>
                 <StepLabel n={3} />
                 <H>BIOLOGICAL<br />SEX</H>
@@ -227,8 +240,8 @@ const OnboardingPage = ({ onComplete }: Props) => {
               </div>
             )}
 
-            {/* ── STEP 4: GOAL ── */}
-            {step === 4 && (
+            {/* ── STEP 5: GOAL ── */}
+            {step === 5 && (
               <div>
                 <StepLabel n={4} />
                 <H>PRIMARY<br />GOAL</H>
@@ -247,10 +260,10 @@ const OnboardingPage = ({ onComplete }: Props) => {
               </div>
             )}
 
-            {/* ── STEP 5: EXPERIENCE ── */}
-            {step === 5 && (
+            {/* ── STEP 6: EXPERIENCE ── */}
+            {step === 6 && (
               <div>
-                <StepLabel n={5} />
+                <StepLabel n={6} />
                 <H>TRAINING<br />EXPERIENCE</H>
                 <Sub>Sets exercise selection and volume.</Sub>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
@@ -271,6 +284,7 @@ const OnboardingPage = ({ onComplete }: Props) => {
                       { label: 'Name',    val: (name.trim() || 'Athlete').toUpperCase() },
                       { label: 'Age',     val: `${age} YRS` },
                       { label: 'Height',  val: `${height} CM` },
+                      { label: 'Weight',  val: `${weight} KG` },
                       { label: 'Goal',    val: goal.replace('_', ' ').toUpperCase() },
                     ].map(({ label, val }) => (
                       <div key={label}>
