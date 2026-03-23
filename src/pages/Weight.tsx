@@ -127,14 +127,26 @@ const WeightPage = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not logged in');
 
-      const { error: upsertError } = await supabase.from('weight_logs').upsert({
-        user_id: user.id,
-        date: todayStr(),
-        weight_kg: currentWeight,
-        source: 'manual',
-      }, { onConflict: 'user_id,date' });
+      // Check if entry already exists for today
+      const { data: existing } = await supabase
+        .from('weight_logs')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('date', todayStr())
+        .maybeSingle();
 
-      if (upsertError) throw upsertError;
+      if (existing) {
+        const { error: updateError } = await supabase
+          .from('weight_logs')
+          .update({ weight_kg: currentWeight })
+          .eq('id', existing.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('weight_logs')
+          .insert({ user_id: user.id, date: todayStr(), weight_kg: currentWeight, source: 'manual' });
+        if (insertError) throw insertError;
+      }
 
       const { error: profileError } = await supabase.from('user_profiles').update({
         weight_kg: currentWeight,
