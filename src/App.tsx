@@ -51,6 +51,7 @@ const OnboardingWrapper = () => {
         fitness_goal: data.fitness_goal,
         experience: data.experience,
         height_cm: data.height_cm || 170,
+        weight_kg: data.weight_kg || null,
         baseline_hr: 60,
         language: 'en',
         updated_at: new Date().toISOString(),
