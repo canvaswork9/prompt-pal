@@ -68,10 +68,31 @@ const WorkoutPage = () => {
 
   if (!checkinData) {
     return (
-      <div className="max-w-3xl mx-auto p-6 text-center space-y-4">
-        <h1 className="text-display text-2xl">No Check-in Today</h1>
-        <p className="text-muted-foreground">Complete your daily check-in first to get your workout plan.</p>
-        <Button variant="accent" onClick={() => navigate('/app')}>Go to Check-in</Button>
+      <div className="max-w-3xl mx-auto p-6 space-y-4">
+        <div className="bg-card rounded-2xl p-6 text-center space-y-4 card-shadow">
+          <div className="text-4xl">⚡</div>
+          <h1 className="font-display text-xl font-bold">Check in first</h1>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Your workout plan is personalised to today's readiness score.<br />
+            Takes about 60 seconds — sleep, HR, and soreness.
+          </p>
+          <Button variant="accent" className="w-full" onClick={() => navigate('/app')}>
+            Start today's check-in →
+          </Button>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { icon: '😴', label: 'Sleep', desc: 'How rested?' },
+            { icon: '❤️', label: 'Heart rate', desc: 'Recovery signal' },
+            { icon: '💪', label: 'Soreness', desc: 'What to skip' },
+          ].map(({ icon, label, desc }) => (
+            <div key={label} className="bg-card rounded-xl p-3 text-center card-shadow">
+              <div className="text-2xl mb-1">{icon}</div>
+              <div className="text-xs font-semibold">{label}</div>
+              <div className="text-[10px] text-muted-foreground">{desc}</div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -232,6 +253,16 @@ const WorkoutPage = () => {
       </div>
 
       <Button variant="accent" className="w-full" onClick={() => navigate('/log')}>📝 Start Logging Sets</Button>
+      {/* CTA — go to Log */}
+      <div className="sticky bottom-20 lg:bottom-6 px-4 pb-2 pt-3 pointer-events-none">
+        <Button
+          variant="accent"
+          className="w-full pointer-events-auto shadow-lg"
+          onClick={() => navigate('/log')}
+        >
+          🏋️ Start logging sets →
+        </Button>
+      </div>
     </div>
   );
 };
