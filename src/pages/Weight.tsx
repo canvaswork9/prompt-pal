@@ -173,7 +173,12 @@ const WeightPage = () => {
       if (!user) throw new Error('Not logged in');
 
       // Deactivate existing goals
-      await supabase.from('weight_goals').update({ is_active: false } as any).eq('user_id', user.id).eq('is_active', true);
+      const { error: deactivateError } = await supabase
+        .from('weight_goals')
+        .update({ is_active: false })
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+      if (deactivateError) throw deactivateError;
 
       const weeklyTarget = goalType === 'lose' ? -weeklyRate : goalType === 'gain' ? weeklyRate : 0;
 
