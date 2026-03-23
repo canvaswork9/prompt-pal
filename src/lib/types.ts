@@ -93,4 +93,5 @@ export interface OnboardingData {
   fitness_goal: FitnessGoal;
   experience: ExperienceLevel;
   height_cm?: number;
+  weight_kg?: number;
 }
