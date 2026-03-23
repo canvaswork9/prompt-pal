@@ -56,12 +56,13 @@ export function useWorkout() {
 
         // Auto-complete any stale incomplete sessions from previous days
         // This prevents old sessions from polluting the Dashboard
-        await supabase
+        const { error: staleError } = await supabase
           .from('workout_sessions')
           .update({ completed: true })
           .eq('user_id', user.id)
           .eq('completed', false)
           .lt('date', todayStr());
+        if (staleError) console.error('Failed to clean up stale sessions:', staleError);
 
         if (session) {
           setSessionId(session.id);
@@ -215,7 +216,7 @@ export function useWorkout() {
       .maybeSingle();
 
     if (!existingPR || newE1RM > Number(existingPR.estimated_1rm || 0)) {
-      await supabase.from('personal_records').insert({
+      const { error: prError } = await supabase.from('personal_records').insert({
         user_id: userId,
         exercise_key: exerciseKey,
         weight_kg: weight,
@@ -224,7 +225,8 @@ export function useWorkout() {
         session_id: sid,
         achieved_at: todayStr(),
       });
-      toast.success(`🏆 New PR! Est. 1RM: ${newE1RM} kg`, { duration: 4000 });
+      if (prError) { console.error('Failed to save PR:', prError); }
+      else { toast.success(`🏆 New PR! Est. 1RM: ${newE1RM} kg`, { duration: 4000 }); }
     }
   };
 
@@ -233,10 +235,11 @@ export function useWorkout() {
     // This lets Dashboard show elapsed time even if user never taps Finish
     const sid = sessionId;
     if (!sid) return;
-    await supabase
+    const { error: durError } = await supabase
       .from('workout_sessions')
       .update({ duration_min: durationMin })
       .eq('id', sid);
+    if (durError) console.error('Failed to save duration:', durError);
   }, [sessionId]);
 
   const finishSession = useCallback(async (durationMin?: number) => {
