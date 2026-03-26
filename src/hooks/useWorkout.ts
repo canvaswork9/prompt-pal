@@ -47,12 +47,13 @@ export function useWorkout(targetDate?: string) {
 
         if (checkin) setCheckinId(checkin.id);
 
-        // Fetch session for target date
+        // Fetch strength session for target date (cardio sessions are separate rows)
         const { data: session } = await supabase
           .from('workout_sessions')
           .select('id, created_at, duration_min, completed')
           .eq('user_id', user.id)
           .eq('date', dateToUse)
+          .eq('session_type', 'strength')
           .maybeSingle();
 
         // Auto-complete any stale incomplete sessions from previous days
@@ -147,6 +148,19 @@ export function useWorkout(targetDate?: string) {
     return true;
   }, [dateToUse]);
 
+  const getCardioSessions = useCallback(async (): Promise<any[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+    const { data } = await supabase
+      .from('workout_sessions')
+      .select('id, cardio_type, duration_min, distance_km, avg_hr, zone_achieved, avg_incline_pct, created_at')
+      .eq('user_id', user.id)
+      .eq('date', dateToUse)
+      .eq('session_type', 'cardio')
+      .order('created_at', { ascending: true });
+    return data || [];
+  }, [dateToUse]);
+
   const ensureSession = useCallback(async (): Promise<string | null> => {
     if (sessionId) return sessionId;
 
@@ -165,6 +179,7 @@ export function useWorkout(targetDate?: string) {
       .insert({
         user_id: user.id,
         date: dateToUse,
+        session_type: 'strength',
         checkin_id: checkin?.id || null,
         readiness_score: checkin?.readiness_score || null,
         split: checkin?.training_split || null,
@@ -308,6 +323,7 @@ export function useWorkout(targetDate?: string) {
     finishSession,
     getSetsForExercise,
     createCardioSession,
+    getCardioSessions,
     dateToUse,
   };
 }
