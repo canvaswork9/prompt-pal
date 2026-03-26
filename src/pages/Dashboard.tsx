@@ -22,6 +22,7 @@ const DashboardPage = () => {
   const [greenDaysCount, setGreenDaysCount] = useState(0);
   const [weightChange, setWeightChange] = useState(0);
   const [workoutCount, setWorkoutCount] = useState(0);
+  const [cardioCount, setCardioCount] = useState(0);
   const [calorieChart, setCalorieChart] = useState<{ date: string; eaten: number; burned: number }[]>([]);
   const [readinessChart, setReadinessChart] = useState<{ date: string; score: number }[]>([]);
   const [weightChart, setWeightChart] = useState<{ date: string; weight_kg: number }[]>([]);
@@ -128,7 +129,10 @@ const DashboardPage = () => {
         }, 0) || 0;
         const totalBurned = Math.round(bmrPerDay * days) + workoutVolumeCals;
         setCaloriesBurned(totalBurned);
-        setWorkoutCount(workouts?.length || 0);
+        const strengthSessions = workouts?.filter(w => (w as any).session_type !== 'cardio') || [];
+        const cardioSessions = workouts?.filter(w => (w as any).session_type === 'cardio') || [];
+        setWorkoutCount(strengthSessions.length);
+        setCardioCount(cardioSessions.length);
         setSessions(workouts?.map(w => ({
           date: w.date,
           split: (w as any).session_type === 'cardio' ? `${(w as any).cardio_type || 'cardio'} 🏃` : (w.split || '-'),
@@ -206,7 +210,7 @@ const DashboardPage = () => {
 
   const statCards = [
     { label: 'Avg Calories In',   value: avgCalories > 0 ? `${avgCalories}` : '—',                    sub: 'kcal/day' },
-    { label: 'Total Burned',      value: caloriesBurned > 0 ? `${caloriesBurned.toLocaleString()}` : '—', sub: `BMR + ${workoutCount} workouts` },
+    { label: 'Total Burned',      value: caloriesBurned > 0 ? `${caloriesBurned.toLocaleString()}` : '—', sub: `BMR + ${workoutCount + cardioCount} sessions` },
     { label: 'Net Calories',      value: avgCalories > 0 || caloriesBurned > 0
         ? `${netCalories > 0 ? '+' : ''}${netCalories}`
         : '—',                                                                                          sub: 'avg/day (in − burned)' },
@@ -214,7 +218,7 @@ const DashboardPage = () => {
     { label: 'Weight Change',     value: weightChart.length >= 2
         ? `${weightChange > 0 ? '+' : ''}${weightChange.toFixed(1)} kg`
         : '—',                                                                                          sub: period === 'today' ? 'today' : period === '7days' ? 'last 7 days' : 'last 30 days' },
-    { label: 'Workouts',          value: `${workoutCount}`,                                            sub: 'sessions logged' },
+    { label: 'Workouts',          value: `${workoutCount + cardioCount}`,                            sub: `${workoutCount} strength · ${cardioCount} cardio` },
   ];
 
   const macroPercent = (consumed: number, target: number) => {
