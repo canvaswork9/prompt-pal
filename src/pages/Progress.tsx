@@ -31,7 +31,7 @@ const ProgressPage = () => {
         const [checkinsRes, prDataRes, countRes, heatmapRes, sleepRes] = await Promise.all([
           supabase.from('daily_checkins').select('date, readiness_score, status').eq('user_id', user.id).order('date', { ascending: true }).limit(30),
           supabase.from('personal_records').select('exercise_key, estimated_1rm, weight_kg, reps, achieved_at').eq('user_id', user.id).order('estimated_1rm', { ascending: false }).limit(5),
-          supabase.from('workout_sessions').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('completed', true),
+          supabase.from('workout_sessions').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('completed', true).eq('session_type', 'strength'),
           supabase.from('daily_checkins').select('date, status, readiness_score').eq('user_id', user.id).gte('date', eighty4DaysAgo.toISOString().slice(0, 10)),
           supabase.from('daily_checkins').select('sleep_hours, readiness_score, status').eq('user_id', user.id).not('readiness_score', 'is', null).order('date', { ascending: false }).limit(60),
         ]);
