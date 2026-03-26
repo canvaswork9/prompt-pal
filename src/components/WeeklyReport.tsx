@@ -137,7 +137,7 @@ const WeeklyReport = () => {
           .eq('user_id', user.id)
           .gte('date', r.start).lte('date', r.end),
         supabase.from('workout_sessions')
-          .select('date, split, duration_min')
+          .select('date, split, duration_min, session_type')
           .eq('user_id', user.id)
           .gte('date', r.start).lte('date', r.end),
         supabase.from('personal_records')
