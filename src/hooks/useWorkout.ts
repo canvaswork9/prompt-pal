@@ -307,5 +307,7 @@ export function useWorkout(targetDate?: string) {
     autoSaveDuration,
     finishSession,
     getSetsForExercise,
+    createCardioSession,
+    dateToUse,
   };
 }
