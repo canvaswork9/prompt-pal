@@ -500,40 +500,61 @@ export type Database = {
       }
       workout_sessions: {
         Row: {
+          avg_hr: number | null
+          avg_incline_pct: number | null
+          cardio_type: string | null
           checkin_id: string | null
           completed: boolean | null
           created_at: string | null
           date: string
+          distance_km: number | null
           duration_min: number | null
           id: string
           notes: string | null
           readiness_score: number | null
+          session_type: string | null
           split: string | null
           user_id: string
+          zone_achieved: string | null
+          zone_target: string | null
         }
         Insert: {
+          avg_hr?: number | null
+          avg_incline_pct?: number | null
+          cardio_type?: string | null
           checkin_id?: string | null
           completed?: boolean | null
           created_at?: string | null
           date: string
+          distance_km?: number | null
           duration_min?: number | null
           id?: string
           notes?: string | null
           readiness_score?: number | null
+          session_type?: string | null
           split?: string | null
           user_id: string
+          zone_achieved?: string | null
+          zone_target?: string | null
         }
         Update: {
+          avg_hr?: number | null
+          avg_incline_pct?: number | null
+          cardio_type?: string | null
           checkin_id?: string | null
           completed?: boolean | null
           created_at?: string | null
           date?: string
+          distance_km?: number | null
           duration_min?: number | null
           id?: string
           notes?: string | null
           readiness_score?: number | null
+          session_type?: string | null
           split?: string | null
           user_id?: string
+          zone_achieved?: string | null
+          zone_target?: string | null
         }
         Relationships: [
           {
