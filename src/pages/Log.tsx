@@ -40,13 +40,14 @@ const LogPage = () => {
   const [cardioZoneAchieved, setCardioZoneAchieved] = useState('Zone 2');
   const [cardioSaving, setCardioSaving]           = useState(false);
   const [cardioSaved, setCardioSaved]             = useState(false);
+  const [cardioSessions, setCardioSessions]       = useState<any[]>([]);
 
   const { lang } = useLanguage();
   const navigate = useNavigate();
   const logEnabled = useFeatureFlag('progressive_overload');
   const {
     loading, saving, saveSet, autoSaveDuration, finishSession,
-    getSetsForExercise, sessionStartFromDB, dateToUse, createCardioSession,
+    getSetsForExercise, sessionStartFromDB, dateToUse, createCardioSession, getCardioSessions,
   } = useWorkout(selectedDate);
 
   const [exercises, setExercises]       = useState<{ key: string; name: string; type: string; green_sets?: string; yellow_sets?: string; muscles?: string }[]>([]);
@@ -60,6 +61,12 @@ const LogPage = () => {
   const [prRmMap, setPrRmMap]           = useState<Record<string, number>>({});
   const [readinessScore, setReadinessScore] = useState<number>(70);
   const [overloadSuggestion, setOverloadSuggestion] = useState<Record<string, { ready: boolean; suggestion: string }>>({});
+
+  // Load existing cardio sessions when switching to cardio tab
+  useEffect(() => {
+    if (activeTab !== 'cardio') return;
+    getCardioSessions().then(setCardioSessions);
+  }, [activeTab, getCardioSessions]);
 
   // Incline applies to current cardio type
   const cardioTypeData  = CARDIO_TYPES.find(ct => ct.value === cardioType);
@@ -260,6 +267,7 @@ const LogPage = () => {
       setCardioDistance('');
       setCardioAvgHr('');
       setCardioIncline('');
+      getCardioSessions().then(setCardioSessions);
     }
   };
 
@@ -490,11 +498,29 @@ const LogPage = () => {
       {/* ─── CARDIO TAB ─── */}
       {activeTab === 'cardio' && (
         <div className="bg-card rounded-xl p-5 card-shadow space-y-4">
+          {/* Sessions logged today */}
+          {cardioSessions.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Logged today</p>
+              {cardioSessions.map((s, i) => {
+                const ct = CARDIO_TYPES.find(c => c.value === s.cardio_type);
+                return (
+                  <div key={s.id} className="flex items-center justify-between bg-secondary rounded-lg px-3 py-2 text-sm">
+                    <span className="font-medium">{ct?.label || s.cardio_type} · {s.duration_min} min</span>
+                    <span className="text-muted-foreground text-xs">
+                      {s.distance_km ? `${s.distance_km} km · ` : ''}{s.zone_achieved || ''}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {cardioSaved ? (
-            <div className="text-center py-6 space-y-3">
-              <div className="text-4xl">✅</div>
-              <p className="font-semibold">Cardio logged!</p>
-              <Button variant="outline" size="sm" onClick={() => setCardioSaved(false)}>Log another</Button>
+            <div className="text-center py-4 space-y-2">
+              <div className="text-3xl">✅</div>
+              <p className="font-semibold text-sm">Cardio session saved!</p>
+              <Button variant="outline" size="sm" onClick={() => setCardioSaved(false)}>+ Log another session</Button>
             </div>
           ) : (
             <>
