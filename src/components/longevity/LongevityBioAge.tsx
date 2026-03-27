@@ -13,6 +13,7 @@ export function LongevityBioAge({ bioAge, bodyFatPct }: Props) {
 
   const factors = [
     { label: 'Resting HR', adj: bioAge.hrAdj,      icon: '❤️' },
+    ...(bioAge.hasHRV ? [{ label: 'HRV', adj: bioAge.hrvAdj, icon: '💜' }] : []),
     { label: 'Sleep',      adj: bioAge.sleepAdj,   icon: '😴' },
     { label: 'Resilience', adj: bioAge.greenAdj,   icon: '⚡' },
     { label: 'Training',   adj: bioAge.trainAdj,   icon: '🏋️' },
@@ -20,7 +21,7 @@ export function LongevityBioAge({ bioAge, bodyFatPct }: Props) {
   ];
 
   const biomarkers = [
-    { label: 'HRV — Heart Rate Variability',      source: 'Whoop · Oura · Garmin',  unlocked: false },
+    { label: 'HRV — Heart Rate Variability',      source: bioAge.hasHRV ? 'Logged via check-in ✓' : 'Enter in daily check-in',  unlocked: bioAge.hasHRV },
     { label: 'VO2max',                             source: 'Apple Watch · Garmin',   unlocked: false },
     { label: 'Body composition (muscle / fat %)',  source: bodyFatPct ? `${bodyFatPct}% body fat logged ✓` : 'Settings → Body Composition', unlocked: !!bodyFatPct },
     { label: 'Metabolic markers (glucose, HbA1c)', source: 'Blood panel',            unlocked: false },
@@ -103,7 +104,7 @@ export function LongevityBioAge({ bioAge, bodyFatPct }: Props) {
       </div>
 
       <p style={{ fontFamily: DM, fontSize: 11, color: '#2a2a50', marginTop: 12, lineHeight: 1.6 }}>
-        Based on cardiovascular and recovery markers only — resting HR, sleep, resilience, and training consistency. True biological age requires body composition, HRV, VO2max, and blood markers. This is a fitness-based estimate, not a medical assessment.
+        Based on cardiovascular and recovery markers — resting HR{bioAge.hasHRV ? ', HRV' : ''}, sleep, resilience, and training consistency. True biological age also requires VO2max and blood markers. This is a fitness-based estimate, not a medical assessment.
       </p>
     </motion.div>
   );
