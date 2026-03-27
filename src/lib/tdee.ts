@@ -120,3 +120,95 @@ export function calculateVolumeCalories(sets: SetVolume[]): number {
   // Compound lifts (squat, deadlift) ~0.12, isolation ~0.08
   return Math.round(totalVolume * 0.1);
 }
+
+// ─── Nutrition Load Modifier ──────────────────────────────────────────────────
+// Adjusts daily calorie target based on today's check-in nutrition intent
+// and readiness score. Applied on top of the long-term TDEE goal target.
+//
+// Design principles:
+//  • Protein stays fixed — muscle retention is non-negotiable
+//  • Low readiness (Red day) soft-caps surplus & reduces deficit severity
+//    because: training harder when depleted worsens recovery, and aggressive
+//    cutting when already fatigued accelerates muscle loss
+//  • Carbs absorb all the calorie delta — they are the energy lever
+//  • Fat stays at 25% of adjusted calories
+
+export type NutritionLoadType = 'surplus' | 'deficit' | 'maintenance';
+
+export interface NutritionLoadAdjustment {
+  adjustedTargets: CalorieTargets;
+  loadPct: number;         // e.g. +0.12, -0.15, 0
+  readinessModified: boolean; // true if readiness capped the adjustment
+  note: string;
+}
+
+export function applyNutritionLoad(
+  base: CalorieTargets,
+  nutritionLoad: NutritionLoadType,
+  readinessScore: number
+): NutritionLoadAdjustment {
+  const isLowReadiness  = readinessScore < 55;  // Red zone
+  const isHighReadiness = readinessScore >= 75;  // Green zone
+
+  // Base adjustment percentages
+  let loadPct: number;
+  let readinessModified = false;
+  let note: string;
+
+  if (nutritionLoad === 'surplus') {
+    if (isHighReadiness) {
+      loadPct = 0.12;   // Green + surplus: full +12% — training is productive
+      note = 'High readiness — full surplus applied to fuel performance';
+    } else if (isLowReadiness) {
+      loadPct = 0.05;   // Red + surplus: soft cap at +5% — body isn't using fuel efficiently
+      readinessModified = true;
+      note = 'Low readiness — surplus reduced to +5% (body absorbs less when fatigued)';
+    } else {
+      loadPct = 0.08;   // Yellow: moderate +8%
+      note = 'Moderate readiness — partial surplus applied';
+    }
+  } else if (nutritionLoad === 'deficit') {
+    if (isLowReadiness) {
+      loadPct = -0.08;  // Red + deficit: ease up — aggressive cut when fatigued = muscle loss
+      readinessModified = true;
+      note = 'Low readiness — deficit softened to -8% to protect muscle mass';
+    } else if (isHighReadiness) {
+      loadPct = -0.15;  // Green + deficit: full cut, body can handle it
+      note = 'High readiness — full deficit applied';
+    } else {
+      loadPct = -0.12;  // Yellow: moderate cut
+      note = 'Moderate readiness — standard deficit applied';
+    }
+  } else {
+    loadPct = 0;
+    note = 'Maintenance — TDEE target unchanged';
+  }
+
+  const adjustedCalories = Math.max(
+    Math.round(base.calorieTarget * (1 + loadPct)),
+    1200  // hard floor — never go below 1200 kcal regardless of settings
+  );
+
+  // Protein locked — it's the anchor
+  const proteinTarget = base.proteinTarget;
+  // Fat stays at 25% of adjusted calories
+  const fatTarget = Math.round((adjustedCalories * 0.25) / 9);
+  // Carbs absorb all remaining — they are the energy lever
+  const carbTarget = Math.max(
+    0,
+    Math.round((adjustedCalories - proteinTarget * 4 - fatTarget * 9) / 4)
+  );
+
+  return {
+    adjustedTargets: {
+      ...base,
+      calorieTarget: adjustedCalories,
+      fatTarget,
+      carbTarget,
+      deficit: adjustedCalories - base.tdee,
+    },
+    loadPct,
+    readinessModified,
+    note,
+  };
+}
