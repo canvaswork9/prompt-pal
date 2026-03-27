@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '@/lib/i18n';
 import { calculateMacros } from '@/lib/decision-engine';
-import { calculateCalorieTargets, applyNutritionLoad, type NutritionLoadAdjustment } from '@/lib/tdee';
+import { calculateCalorieTargets, calculateCalorieTargetsFromGoal, applyNutritionLoad, type NutritionLoadAdjustment } from '@/lib/tdee';
 import { MEAL_DB } from '@/lib/exercise-db';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,6 +41,7 @@ const MealPage = () => {
   const [customMeals, setCustomMeals] = useState<Record<string, Meal[]>>({});
   const [reloadKey, setReloadKey] = useState(0);
   const [tdeeTargets, setTdeeTargets] = useState<CalorieTargets | null>(null);
+  const [activeGoalWeeklyRate, setActiveGoalWeeklyRate] = useState<number | null>(null); // from weight_goals
 
   const loadCustomMeals = useCallback(async (userId: string) => {
     const { data } = await supabase.from('custom_meals').select('*').eq('user_id', userId);
@@ -61,27 +62,36 @@ const MealPage = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { setLoading(false); return; }
 
-        // Fetch everything in parallel — including custom_meals
-        const [{ data: profile }, { data: todayCheckin }, { data: logs }, { data: rawCustomMeals }] = await Promise.all([
+        // Fetch everything in parallel — including custom_meals and weight_goals
+        const [{ data: profile }, { data: todayCheckin }, { data: logs }, { data: rawCustomMeals }, { data: activeGoal }] = await Promise.all([
           supabase.from('user_profiles').select('weight_kg, fitness_goal, height_cm, age, sex, activity_level').eq('id', user.id).maybeSingle(),
           supabase.from('daily_checkins').select('nutrition_load, readiness_score').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
           supabase.from('meal_logs').select('*').eq('user_id', user.id).eq('date', todayStr()),
           supabase.from('custom_meals').select('*').eq('user_id', user.id),
+          supabase.from('weight_goals').select('weekly_target_kg, goal_type').eq('user_id', user.id).eq('is_active', true).maybeSingle(),
         ]);
 
         if (profile?.weight_kg) setWeightKg(Number(profile.weight_kg));
         if (profile?.fitness_goal) setFitnessGoal(profile.fitness_goal);
 
-        // Calculate TDEE if profile has enough data
+        // Calculate TDEE — prefer active weight_goals weekly rate over generic fitness_goal
         if (profile) {
-          const targets = calculateCalorieTargets(
-            Number(profile.weight_kg) || 70,
-            (profile as any).height_cm || 170,
-            (profile as any).age || 30,
-            (profile as any).sex || 'other',
-            ((profile as any).activity_level as any) || 'moderate',
-            (profile.fitness_goal as any) || 'general'
-          );
+          const wKg  = Number(profile.weight_kg) || 70;
+          const hCm  = (profile as any).height_cm || 170;
+          const age  = (profile as any).age || 30;
+          const sex  = (profile as any).sex || 'other';
+          const act  = ((profile as any).activity_level as any) || 'moderate';
+
+          let targets;
+          if (activeGoal?.weekly_target_kg !== undefined && activeGoal.weekly_target_kg !== null) {
+            // Use actual weekly rate from weight_goals (most accurate)
+            const weeklyRate = Number(activeGoal.weekly_target_kg);
+            setActiveGoalWeeklyRate(weeklyRate);
+            targets = calculateCalorieTargetsFromGoal(wKg, hCm, age, sex, act, weeklyRate);
+          } else {
+            // Fallback to fitness_goal from profile
+            targets = calculateCalorieTargets(wKg, hCm, age, sex, act, (profile.fitness_goal as any) || 'general');
+          }
           setTdeeTargets(targets);
         }
 
@@ -297,8 +307,8 @@ const MealPage = () => {
         {tdeeTargets && effectiveTargets && (
           <div className="text-xs text-muted-foreground bg-secondary rounded-lg px-3 py-2 mt-3 space-y-1">
             <div className="flex justify-between">
-              <span>TDEE base: {tdeeTargets.tdee} kcal</span>
-              <span>Adjusted: {effectiveTargets.adjustedTargets.calorieTarget} kcal
+              <span>TDEE: {tdeeTargets.tdee} kcal</span>
+              <span>Target: {effectiveTargets.adjustedTargets.calorieTarget} kcal
                 {effectiveTargets.loadPct !== 0 && (
                   <span className={effectiveTargets.loadPct > 0 ? ' text-status-green' : ' text-status-red'}>
                     {' '}({effectiveTargets.loadPct > 0 ? '+' : ''}{Math.round(effectiveTargets.loadPct * 100)}%)
@@ -306,12 +316,28 @@ const MealPage = () => {
                 )}
               </span>
             </div>
+            {/* Show weight goal source if active */}
+            {activeGoalWeeklyRate !== null && (
+              <div className="flex justify-between">
+                <span style={{ color: 'hsl(245 100% 70%)' }}>
+                  🎯 Goal: {activeGoalWeeklyRate < 0
+                    ? `Lose ${Math.abs(activeGoalWeeklyRate)}kg/week`
+                    : activeGoalWeeklyRate > 0
+                    ? `Gain ${activeGoalWeeklyRate}kg/week`
+                    : 'Maintain weight'}
+                </span>
+                <span style={{ color: tdeeTargets.deficit < 0 ? 'hsl(2 84% 60%)' : tdeeTargets.deficit > 0 ? 'hsl(77 100% 58%)' : 'hsl(240 15% 55%)' }}>
+                  {tdeeTargets.deficit < 0 ? `${tdeeTargets.deficit} kcal/day deficit` : tdeeTargets.deficit > 0 ? `+${tdeeTargets.deficit} kcal/day surplus` : 'Maintenance'}
+                </span>
+              </div>
+            )}
             {effectiveTargets.note && (
               <div className={effectiveTargets.readinessModified ? 'text-status-yellow' : ''}>
                 {effectiveTargets.readinessModified ? '⚡ ' : ''}
                 {effectiveTargets.note}
               </div>
             )}
+          </div>
           </div>
         )}
 
