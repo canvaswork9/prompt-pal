@@ -338,7 +338,7 @@ const MealPage = () => {
               </div>
             )}
           </div>
-          </div>
+          
         )}
 
         <div className="mt-4 space-y-2">
