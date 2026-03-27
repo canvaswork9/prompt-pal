@@ -70,6 +70,35 @@ export function calculateCalorieTargets(
   };
 }
 
+// ─── Calculate targets from actual weight goal (weekly_target_kg) ────────────
+// Used by Meal.tsx when user has an active weight_goals entry
+// weeklyTargetKg: negative = lose (e.g. -0.5), positive = gain, 0 = maintain
+export function calculateCalorieTargetsFromGoal(
+  weightKg: number, heightCm: number, age: number,
+  sex: string, activityLevel: ActivityLevel,
+  weeklyTargetKg: number  // from weight_goals.weekly_target_kg
+): CalorieTargets {
+  const tdee = calculateTDEE(weightKg, heightCm, age, sex, activityLevel);
+  const bmr  = calculateBMR(weightKg, heightCm, age, sex);
+
+  // 1 kg of body weight ≈ 7,700 kcal
+  // Weekly deficit/surplus = weeklyTargetKg × 7700 / 7
+  const dailyDelta   = Math.round((weeklyTargetKg * 7700) / 7);
+  const calorieTarget = Math.max(tdee + dailyDelta, 1200);
+  const deficit      = dailyDelta; // negative = deficit, positive = surplus
+
+  // Protein: higher when cutting to preserve muscle
+  const proteinMultiplier = weeklyTargetKg < 0 ? 2.4 : 2.0;
+  const proteinTarget = Math.round(weightKg * proteinMultiplier);
+  const fatTarget     = Math.round((calorieTarget * 0.25) / 9);
+  const carbTarget    = Math.max(
+    0,
+    Math.round((calorieTarget - proteinTarget * 4 - fatTarget * 9) / 4)
+  );
+
+  return { tdee, bmr, calorieTarget, proteinTarget, carbTarget, fatTarget, deficit };
+}
+
 export function weeksToGoal(
   currentWeight: number, targetWeight: number, weeklyChangeKg: number
 ): number | null {
