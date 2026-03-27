@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '@/lib/i18n';
 import { calculateMacros } from '@/lib/decision-engine';
-import { calculateCalorieTargets } from '@/lib/tdee';
+import { calculateCalorieTargets, applyNutritionLoad, type NutritionLoadAdjustment } from '@/lib/tdee';
 import { MEAL_DB } from '@/lib/exercise-db';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,6 +32,8 @@ const MealPage = () => {
   const [loading, setLoading] = useState(true);
   const [weightKg, setWeightKg] = useState(75);
   const [nutritionLoad, setNutritionLoad] = useState<string>('maintenance');
+  const [readinessScore, setReadinessScore] = useState<number>(70);
+  const [loadAdjustment, setLoadAdjustment] = useState<NutritionLoadAdjustment | null>(null);
   const [fitnessGoal, setFitnessGoal] = useState<string>('muscle');
   const [mealSelections, setMealSelections] = useState<Map<string, number>>(new Map());
   const [eatenSlots, setEatenSlots] = useState<Set<string>>(new Set());
@@ -62,7 +64,7 @@ const MealPage = () => {
         // Fetch everything in parallel — including custom_meals
         const [{ data: profile }, { data: todayCheckin }, { data: logs }, { data: rawCustomMeals }] = await Promise.all([
           supabase.from('user_profiles').select('weight_kg, fitness_goal, height_cm, age, sex, activity_level').eq('id', user.id).maybeSingle(),
-          supabase.from('daily_checkins').select('nutrition_load').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
+          supabase.from('daily_checkins').select('nutrition_load, readiness_score').eq('user_id', user.id).eq('date', todayStr()).maybeSingle(),
           supabase.from('meal_logs').select('*').eq('user_id', user.id).eq('date', todayStr()),
           supabase.from('custom_meals').select('*').eq('user_id', user.id),
         ]);
@@ -97,6 +99,7 @@ const MealPage = () => {
         }
 
         if (checkin?.nutrition_load) setNutritionLoad(checkin.nutrition_load);
+        if (todayCheckin?.readiness_score) setReadinessScore(todayCheckin.readiness_score);
 
         // Build customMeals map from raw data (not React state — state update is async)
         const freshCustomMeals: Record<string, Meal[]> = {};
@@ -146,9 +149,22 @@ const MealPage = () => {
     load();
   }, [reloadKey]);
 
-  // Use TDEE targets if available, otherwise fall back to simple macros
-  const macros = tdeeTargets
-    ? { calories: tdeeTargets.calorieTarget, protein: tdeeTargets.proteinTarget, carbs: tdeeTargets.carbTarget, fat: tdeeTargets.fatTarget }
+  // Apply nutrition load modifier on top of TDEE targets
+  // This combines long-term goal (TDEE) with today's intent (nutrition_load)
+  // weighted by readiness — so a Red day softens both surpluses and deficits
+  const effectiveTargets = (() => {
+    if (!tdeeTargets) return null;
+    const adj = applyNutritionLoad(
+      tdeeTargets,
+      nutritionLoad as 'surplus' | 'deficit' | 'maintenance',
+      readinessScore
+    );
+    // Update loadAdjustment in render — use a ref pattern to avoid setState in render
+    return adj;
+  })();
+
+  const macros = effectiveTargets
+    ? { calories: effectiveTargets.adjustedTargets.calorieTarget, protein: effectiveTargets.adjustedTargets.proteinTarget, carbs: effectiveTargets.adjustedTargets.carbTarget, fat: effectiveTargets.adjustedTargets.fatTarget }
     : calculateMacros(weightKg, fitnessGoal as any, nutritionLoad as any);
 
   const getAllMealsForSlot = useCallback((slot: MealSlotKey): Meal[] => {
@@ -278,12 +294,24 @@ const MealPage = () => {
           </div>
         </div>
 
-        {tdeeTargets && (
-          <div className="text-xs text-muted-foreground bg-secondary rounded-lg px-3 py-2 mt-3">
-            TDEE: {tdeeTargets.tdee} kcal ·
-            Target: {tdeeTargets.calorieTarget} kcal/day
-            ({tdeeTargets.deficit > 0 ? '+' : ''}{tdeeTargets.deficit} kcal
-            {tdeeTargets.deficit < 0 ? ' deficit' : tdeeTargets.deficit > 0 ? ' surplus' : ''})
+        {tdeeTargets && effectiveTargets && (
+          <div className="text-xs text-muted-foreground bg-secondary rounded-lg px-3 py-2 mt-3 space-y-1">
+            <div className="flex justify-between">
+              <span>TDEE base: {tdeeTargets.tdee} kcal</span>
+              <span>Adjusted: {effectiveTargets.adjustedTargets.calorieTarget} kcal
+                {effectiveTargets.loadPct !== 0 && (
+                  <span className={effectiveTargets.loadPct > 0 ? ' text-status-green' : ' text-status-red'}>
+                    {' '}({effectiveTargets.loadPct > 0 ? '+' : ''}{Math.round(effectiveTargets.loadPct * 100)}%)
+                  </span>
+                )}
+              </span>
+            </div>
+            {effectiveTargets.note && (
+              <div className={effectiveTargets.readinessModified ? 'text-status-yellow' : ''}>
+                {effectiveTargets.readinessModified ? '⚡ ' : ''}
+                {effectiveTargets.note}
+              </div>
+            )}
           </div>
         )}
 
