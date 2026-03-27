@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
+import { ComposedChart, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Legend } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/lib/i18n';
@@ -22,9 +22,9 @@ const DashboardPage = () => {
   const [greenDaysCount, setGreenDaysCount] = useState(0);
   const [weightChange, setWeightChange] = useState(0);
   const [workoutCount, setWorkoutCount] = useState(0);
-  const [cardioCount, setCardioCount] = useState(0);
   const [calorieChart, setCalorieChart] = useState<{ date: string; eaten: number; burned: number }[]>([]);
   const [readinessChart, setReadinessChart] = useState<{ date: string; score: number }[]>([]);
+  const [readinessTrainingChart, setReadinessTrainingChart] = useState<{ date: string; score: number; load: number; trained: boolean }[]>([]);
   const [weightChart, setWeightChart] = useState<{ date: string; weight_kg: number }[]>([]);
   const [macroTotals, setMacroTotals] = useState({ protein: 0, carbs: 0, fat: 0 });
   const [tdeeTarget, setTdeeTarget] = useState<{ protein: number; carbs: number; fat: number; calories: number } | null>(null);
@@ -129,10 +129,7 @@ const DashboardPage = () => {
         }, 0) || 0;
         const totalBurned = Math.round(bmrPerDay * days) + workoutVolumeCals;
         setCaloriesBurned(totalBurned);
-        const strengthSessions = workouts?.filter(w => (w as any).session_type !== 'cardio') || [];
-        const cardioSessions = workouts?.filter(w => (w as any).session_type === 'cardio') || [];
-        setWorkoutCount(strengthSessions.length);
-        setCardioCount(cardioSessions.length);
+        setWorkoutCount(workouts?.length || 0);
         setSessions(workouts?.map(w => ({
           date: w.date,
           split: (w as any).session_type === 'cardio' ? `${(w as any).cardio_type || 'cardio'} 🏃` : (w.split || '-'),
@@ -150,6 +147,25 @@ const DashboardPage = () => {
           setAvgReadiness(Math.round(scores.reduce((a, b) => a + b, 0) / scores.length));
           setGreenDaysCount(checkins.filter(c => c.status === 'Green').length);
           setReadinessChart(checkins.map(c => ({ date: c.date.slice(5), score: c.readiness_score || 0 })));
+
+          // Build combined readiness + training load chart
+          // Training load = volumeCals per day (0 = rest day)
+          const loadByDate: Record<string, number> = {};
+          workouts?.forEach(w => {
+            const sets = setsBySession.get(w.id) || [];
+            const vol = calculateVolumeCalories(sets);
+            // Use duration as proxy when no sets logged (cardio sessions)
+            const load = vol > 0 ? vol : (w.duration_min || 0) * 5;
+            loadByDate[w.date] = (loadByDate[w.date] || 0) + load;
+          });
+          setReadinessTrainingChart(
+            checkins.map(c => ({
+              date: c.date.slice(5),
+              score: c.readiness_score || 0,
+              load: loadByDate[c.date] || 0,
+              trained: !!loadByDate[c.date],
+            }))
+          );
         }
 
         // Weight
@@ -210,7 +226,7 @@ const DashboardPage = () => {
 
   const statCards = [
     { label: 'Avg Calories In',   value: avgCalories > 0 ? `${avgCalories}` : '—',                    sub: 'kcal/day' },
-    { label: 'Total Burned',      value: caloriesBurned > 0 ? `${caloriesBurned.toLocaleString()}` : '—', sub: `BMR + ${workoutCount + cardioCount} sessions` },
+    { label: 'Total Burned',      value: caloriesBurned > 0 ? `${caloriesBurned.toLocaleString()}` : '—', sub: `BMR + ${workoutCount} workouts` },
     { label: 'Net Calories',      value: avgCalories > 0 || caloriesBurned > 0
         ? `${netCalories > 0 ? '+' : ''}${netCalories}`
         : '—',                                                                                          sub: 'avg/day (in − burned)' },
@@ -218,7 +234,7 @@ const DashboardPage = () => {
     { label: 'Weight Change',     value: weightChart.length >= 2
         ? `${weightChange > 0 ? '+' : ''}${weightChange.toFixed(1)} kg`
         : '—',                                                                                          sub: period === 'today' ? 'today' : period === '7days' ? 'last 7 days' : 'last 30 days' },
-    { label: 'Workouts',          value: `${workoutCount + cardioCount}`,                            sub: `${workoutCount} strength · ${cardioCount} cardio` },
+    { label: 'Workouts',          value: `${workoutCount}`,                                            sub: 'sessions logged' },
   ];
 
   const macroPercent = (consumed: number, target: number) => {
@@ -292,21 +308,73 @@ const DashboardPage = () => {
         </div>
       )}
 
-      {/* Readiness Trend */}
-      {readinessChart.length > 0 && (
+      {/* Readiness vs Training Load — ComposedChart with dual Y-axis */}
+      {readinessTrainingChart.length > 0 && (
         <div className="bg-card rounded-xl p-5 card-shadow">
-          <h3 className="font-display font-bold text-sm tracking-tight mb-4 uppercase text-foreground">Readiness Trend</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={readinessChart}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-display font-bold text-sm tracking-tight uppercase text-foreground">Readiness vs Training Load</h3>
+            <a href="/longevity" className="text-xs text-primary underline underline-offset-2">Recovery Debt →</a>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">Bars = training volume · Line = readiness score</p>
+          <ResponsiveContainer width="100%" height={210}>
+            <ComposedChart data={readinessTrainingChart} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-              <YAxis domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-              <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))' }} />
-              <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-              <ReferenceLine y={70} stroke="hsl(var(--status-green))" strokeDasharray="3 3" />
-              <ReferenceLine y={45} stroke="hsl(var(--status-yellow))" strokeDasharray="3 3" />
-            </LineChart>
+              {/* Left axis — readiness 0–100 */}
+              <YAxis
+                yAxisId="readiness"
+                domain={[0, 100]}
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                width={28}
+              />
+              {/* Right axis — training load (kcal), scale independently */}
+              <YAxis
+                yAxisId="load"
+                orientation="right"
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                width={36}
+                tickFormatter={(v) => v > 0 ? `${v}` : ''}
+              />
+              <Tooltip
+                contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                formatter={(value: number, name: string) => {
+                  if (name === 'score') return [`${value}`, 'Readiness'];
+                  if (name === 'load') return [value > 0 ? `~${value} kcal` : 'Rest day', 'Training load'];
+                  return [value, name];
+                }}
+              />
+              {/* Training load bars — behind the line */}
+              <Bar
+                yAxisId="load"
+                dataKey="load"
+                fill="#6c63ff"
+                fillOpacity={0.35}
+                radius={[3, 3, 0, 0]}
+                maxBarSize={32}
+              />
+              {/* Readiness line — on top */}
+              <Line
+                yAxisId="readiness"
+                type="monotone"
+                dataKey="score"
+                stroke="hsl(var(--primary))"
+                strokeWidth={2.5}
+                dot={(props: any) => {
+                  const { cx, cy, payload } = props;
+                  if (!payload.trained) return <circle key={cx} cx={cx} cy={cy} r={2} fill="hsl(var(--primary))" />;
+                  return <circle key={cx} cx={cx} cy={cy} r={4} fill="hsl(var(--primary))" stroke="hsl(var(--background))" strokeWidth={1.5} />;
+                }}
+              />
+              {/* Green/Yellow threshold lines */}
+              <ReferenceLine yAxisId="readiness" y={70} stroke="#4ade80" strokeDasharray="4 4" strokeOpacity={0.6} />
+              <ReferenceLine yAxisId="readiness" y={45} stroke="#facc15" strokeDasharray="4 4" strokeOpacity={0.6} />
+            </ComposedChart>
           </ResponsiveContainer>
+          <div className="flex gap-4 mt-2 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-1.5 rounded" style={{ background: '#6c63ff', opacity: 0.6 }} />Training load (kcal)</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-0.5 rounded" style={{ background: 'hsl(var(--primary))' }} />Readiness</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full border border-primary" style={{ background: 'hsl(var(--primary))' }} />Trained day</span>
+          </div>
         </div>
       )}
 
