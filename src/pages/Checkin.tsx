@@ -254,14 +254,52 @@ const CheckinPage = () => {
       ),
     },
     {
-      i: 3, icon: '🏃', label: t('yesterday_label'),
+      i: 3, icon: '💜', label: 'HRV',
+      summary: data.hrv_ms ? `${data.hrv_ms} ms` : 'skip',
+      summaryColor: !data.hrv_ms ? 'text-muted-foreground' : data.hrv_ms >= 70 ? 'text-accent' : data.hrv_ms >= 50 ? 'text-status-yellow' : 'text-status-red',
+      content: (
+        <div className="space-y-2 pt-1">
+          <div className="flex justify-between text-sm items-center">
+            <span className="text-[10px] text-muted-foreground">20<br/>low</span>
+            <span className="font-mono text-primary text-base">
+              {data.hrv_ms ? `${data.hrv_ms} ms` : '— not entered'}
+              <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                {!data.hrv_ms ? '' : data.hrv_ms >= 90 ? '✓ elite' : data.hrv_ms >= 70 ? '✓ great' : data.hrv_ms >= 50 ? '✓ good' : data.hrv_ms >= 35 ? '⚡ low' : '⚠ very low'}
+              </span>
+            </span>
+            <span className="text-[10px] text-muted-foreground">120<br/>elite</span>
+          </div>
+          <Slider value={[data.hrv_ms ?? 55]} disabled={!data.hrv_ms}
+            onValueChange={v => setData(d => ({ ...d, hrv_ms: v[0] }))}
+            min={20} max={120} step={1} />
+          <div className="flex justify-between text-[9px] text-muted-foreground/60 px-0.5">
+            <span>&lt;35 very low</span><span>35–50 low</span><span>50–70 good</span><span>70+ great</span>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" size="sm" className="flex-1 text-xs"
+              onClick={() => setData(d => ({ ...d, hrv_ms: d.hrv_ms ?? 55 }))}>
+              Enter HRV
+            </Button>
+            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground"
+              onClick={() => { setData(d => ({ ...d, hrv_ms: null })); setExpandedCard(4); }}>
+              Skip →
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            From Whoop, Oura, Garmin, or Apple Health. Optional — improves Bio Age accuracy.
+          </p>
+        </div>
+      ),
+    },
+    {
+      i: 4, icon: '🏃', label: t('yesterday_label'),
       summary: data.yesterday_training,
       summaryColor: '',
       content: (
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 pt-1">
           {(['none', 'cardio', 'upper', 'lower', 'full'] as YesterdayTraining[]).map(v => (
             <OptionButton key={v} active={data.yesterday_training === v}
-              onClick={() => { setData(d => ({ ...d, yesterday_training: v })); setExpandedCard(4); }}>
+              onClick={() => { setData(d => ({ ...d, yesterday_training: v })); setExpandedCard(5); }}>
               {t(v)}
             </OptionButton>
           ))}
@@ -269,14 +307,14 @@ const CheckinPage = () => {
       ),
     },
     {
-      i: 4, icon: '💢', label: t('soreness_label'),
+      i: 5, icon: '💢', label: t('soreness_label'),
       summary: data.muscle_soreness,
       summaryColor: data.muscle_soreness === 'full' ? 'text-status-red' : data.muscle_soreness === 'none' ? 'text-accent' : 'text-status-yellow',
       content: (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
           {(['none', 'upper', 'lower', 'full'] as MuscleSoreness[]).map(v => (
             <OptionButton key={v} active={data.muscle_soreness === v}
-              onClick={() => { setData(d => ({ ...d, muscle_soreness: v })); setExpandedCard(5); }}>
+              onClick={() => { setData(d => ({ ...d, muscle_soreness: v })); setExpandedCard(6); }}>
               {t(v)}
             </OptionButton>
           ))}
@@ -284,7 +322,7 @@ const CheckinPage = () => {
       ),
     },
     {
-      i: 5, icon: '🍽️', label: t('nutrition_label'),
+      i: 6, icon: '🍽️', label: t('nutrition_label'),
       summary: data.nutrition_load,
       summaryColor: '',
       content: (
