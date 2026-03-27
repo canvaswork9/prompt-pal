@@ -6,6 +6,7 @@ export interface DayData {
   readiness_score: number | null;
   sleep_hours: number | null;
   resting_hr: number | null;
+  hrv_ms: number | null;
 }
 
 export interface WorkoutDay { date: string; }
@@ -18,12 +19,14 @@ export interface BioAge {
   delta: number;
   label: 'YOUNGER' | 'ON TRACK' | 'OLDER';
   hrAdj: number;
+  hrvAdj: number;
   sleepAdj: number;
   greenAdj: number;
   trainAdj: number;
   bodyFatAdj: number;
   hasAge: boolean;
   hasBodyComp: boolean;
+  hasHRV: boolean;
 }
 
 export interface LongevityScore {
@@ -44,6 +47,7 @@ export interface LongevityScore {
   greenTrend: 'improving' | 'stable' | 'declining';
   workoutsPerWeek: number;
   consecutiveRed: number;
+  avgHRV: number;
 }
 
 export interface RecoveryDebt {
@@ -128,7 +132,7 @@ export function calcLongevityScore(days: DayData[], workouts: WorkoutDay[]): Lon
       total: 0, grade: 'NEW',
       greenRate: 0, sleepScore: 0, trainingRate: 0, hrScore: 0,
       greenDays: 0, yellowDays: 0, redDays: 0, totalDays,
-      avgSleep: 0, avgHR: 0,
+      avgSleep: 0, avgHR: 0, avgHRV: 0,
       hrTrend: 'stable', sleepTrend: 'stable', greenTrend: 'stable',
       workoutsPerWeek: 0, consecutiveRed: 0,
     };
@@ -181,10 +185,15 @@ export function calcLongevityScore(days: DayData[], workouts: WorkoutDay[]): Lon
     if (d.status === 'Red') { curRed++; maxRed = Math.max(maxRed, curRed); } else curRed = 0;
   }
 
+  const hrvDays = checkinDays.filter(d => d.hrv_ms !== null && d.hrv_ms > 0);
+  const avgHRV  = hrvDays.length
+    ? Math.round(hrvDays.reduce((s, d) => s + (d.hrv_ms ?? 0), 0) / hrvDays.length)
+    : 0;
+
   return {
     total, grade, greenRate, sleepScore, trainingRate, hrScore,
     greenDays, yellowDays, redDays, totalDays,
-    avgSleep, avgHR, hrTrend, sleepTrend, greenTrend,
+    avgSleep, avgHR, avgHRV, hrTrend, sleepTrend, greenTrend,
     workoutsPerWeek, consecutiveRed: maxRed,
   };
 }
@@ -223,13 +232,14 @@ export function calcRecoveryDebt(days: DayData[], workouts: WorkoutDay[]): Recov
 
 export function calcBioAge(score: LongevityScore, chronAge: number | null, bodyFatPct?: number): BioAge {
   if (!chronAge || chronAge <= 0) {
-    return { bioAge: 0, chronAge: 0, delta: 0, label: 'ON TRACK', hrAdj: 0, sleepAdj: 0, greenAdj: 0, trainAdj: 0, bodyFatAdj: 0, hasAge: false, hasBodyComp: false };
+    return { bioAge: 0, chronAge: 0, delta: 0, label: 'ON TRACK', hrAdj: 0, hrvAdj: 0, sleepAdj: 0, greenAdj: 0, trainAdj: 0, bodyFatAdj: 0, hasAge: false, hasBodyComp: false, hasHRV: false };
   }
   if (score.totalDays < 7) {
-    return { bioAge: chronAge, chronAge, delta: 0, label: 'ON TRACK', hrAdj: 0, sleepAdj: 0, greenAdj: 0, trainAdj: 0, bodyFatAdj: 0, hasAge: true, hasBodyComp: false };
+    return { bioAge: chronAge, chronAge, delta: 0, label: 'ON TRACK', hrAdj: 0, hrvAdj: 0, sleepAdj: 0, greenAdj: 0, trainAdj: 0, bodyFatAdj: 0, hasAge: true, hasBodyComp: false, hasHRV: false };
   }
 
-  const hrAdj    = score.avgHR <= 0 ? 0 : score.avgHR < 55 ? -4 : score.avgHR < 60 ? -2 : score.avgHR < 65 ? 0 : score.avgHR < 70 ? +2 : score.avgHR < 76 ? +4 : +6;
+  const hrAdj    = score.avgHR <= 0 ? 0 : score.avgHR < 55 ? -3 : score.avgHR < 60 ? -1 : score.avgHR < 65 ? 0 : score.avgHR < 70 ? +1 : score.avgHR < 76 ? +3 : +5;
+  const hrvAdj   = score.avgHRV <= 0 ? 0 : score.avgHRV >= 90 ? -4 : score.avgHRV >= 70 ? -2 : score.avgHRV >= 50 ? -1 : score.avgHRV >= 35 ? 0 : score.avgHRV >= 20 ? +2 : +4;
   const sleepAdj = score.avgSleep <= 0 ? 0 : score.avgSleep >= 7.5 ? -2 : score.avgSleep >= 7.0 ? -1 : score.avgSleep >= 6.5 ? 0 : score.avgSleep >= 6.0 ? +2 : +4;
   const greenAdj = score.greenRate >= 70 ? -2 : score.greenRate >= 50 ? -1 : score.greenRate >= 30 ? 0 : +2;
   const trainAdj = score.workoutsPerWeek >= 4 ? -2 : score.workoutsPerWeek >= 3 ? -1 : score.workoutsPerWeek >= 2 ? 0 : +2;
@@ -240,12 +250,13 @@ export function calcBioAge(score: LongevityScore, chronAge: number | null, bodyF
     bodyFatAdj = bodyFatPct < 10 ? -3 : bodyFatPct < 15 ? -2 : bodyFatPct < 20 ? -1 : bodyFatPct < 25 ? 0 : bodyFatPct < 30 ? +2 : +4;
   }
 
-  const totalAdj = hrAdj + sleepAdj + greenAdj + trainAdj + bodyFatAdj;
+  const totalAdj = hrAdj + hrvAdj + sleepAdj + greenAdj + trainAdj + bodyFatAdj;
   const bioAge   = Math.max(18, chronAge + totalAdj);
   const delta    = bioAge - chronAge;
   const label    = delta <= -2 ? 'YOUNGER' : delta >= 3 ? 'OLDER' : 'ON TRACK';
 
-  return { bioAge, chronAge, delta, label, hrAdj, sleepAdj, greenAdj, trainAdj, bodyFatAdj, hasAge: true, hasBodyComp };
+  const hasHRV = score.avgHRV > 0;
+  return { bioAge, chronAge, delta, label, hrAdj, hrvAdj, sleepAdj, greenAdj, trainAdj, bodyFatAdj, hasAge: true, hasBodyComp, hasHRV };
 }
 
 export function generateInsights(score: LongevityScore): Insight[] {
