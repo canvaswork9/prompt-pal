@@ -28,6 +28,7 @@ export interface CheckinData {
   sleep_hours: number;
   sleep_quality: SleepQuality;
   resting_hr: number;
+  hrv_ms: number | null;
   yesterday_training: YesterdayTraining;
   muscle_soreness: MuscleSoreness;
   nutrition_load: NutritionLoad;
