@@ -203,13 +203,11 @@ const MealPage = () => {
 
   // ── Food Photo Analyzer confirm handler ──────────────────────────────────
   const handleFoodAnalyzerConfirm = async (macros: FoodMacros) => {
+    const slot = photoSlot as string; // capture before clearing
     setPhotoSlot(null);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      // Save directly to meal_logs as an eaten meal
-      const slot = photoSlot as string;
       const { error } = await supabase.from('meal_logs').insert({
         user_id:   user.id,
         date:      todayStr(),
@@ -226,6 +224,7 @@ const MealPage = () => {
       setReloadKey(k => k + 1);
     } catch (err: any) {
       console.error('Food log error:', err);
+      toast.error(err.message || 'Failed to save meal');
     }
   };
 
