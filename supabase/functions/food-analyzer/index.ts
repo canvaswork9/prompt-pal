@@ -1,5 +1,3 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -11,9 +9,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { image_base64, image_mime, meal_name, ingredients, lang } = await req.json();
+    const body = await req.json();
+    const { image_base64, image_mime, meal_name, ingredients, lang } = body;
 
-    const openrouterKey = Deno.env.get("OPENROUTER_API_KEY")!;
+    const openrouterKey = Deno.env.get("OPENROUTER_API_KEY");
+    if (!openrouterKey) throw new Error("OPENROUTER_API_KEY not set");
 
     if (!meal_name) {
       return new Response(JSON.stringify({ error: "meal_name is required" }), {
@@ -22,113 +22,114 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build messages — image is optional (text-only fallback if no image)
-    const userContent: any[] = [];
+    const hasImage = !!(image_base64 && image_mime);
+    const ingredientText = ingredients ? `\nIngredients: ${ingredients}` : "";
+    const langNote = lang === "th" ? "Respond in Thai." : "Respond in English.";
 
-    if (image_base64 && image_mime) {
-      // Llama 3.2 Vision & most OpenRouter vision models use image_url format
-      userContent.push({
-        type: "image_url",
-        image_url: {
-          url: `data:${image_mime};base64,${image_base64}`,
-          detail: "low",  // low detail = faster + cheaper, sufficient for food recognition
+    const prompt = `Estimate nutrition for this meal.
+Meal: ${meal_name}${ingredientText}
+${hasImage ? "Use the photo to estimate portion size." : "Estimate from name only."}
+
+Reply ONLY with JSON (no markdown):
+{"kcal":number,"protein_g":number,"carbs_g":number,"fat_g":number,"confidence":"high"|"medium"|"low","notes":"string"}
+${langNote}`;
+
+    // ── Attempt 1: Vision model (if image provided) ──────────────────
+    if (hasImage) {
+      const visionResult = await callOpenRouter(openrouterKey, "qwen/qwen2.5-vl-72b-instruct:free", [
+        { role: "system", content: "Nutritionist AI. Respond with valid JSON only, no markdown." },
+        {
+          role: "user", content: [
+            { type: "image_url", image_url: { url: `data:${image_mime};base64,${image_base64}` } },
+            { type: "text", text: prompt },
+          ],
         },
+      ]);
+
+      if (visionResult.ok) {
+        console.log("food-analyzer: vision model succeeded");
+        return new Response(JSON.stringify(visionResult.data), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      console.log("food-analyzer: vision failed:", visionResult.error, "— falling back to text-only");
+    }
+
+    // ── Attempt 2: Text-only (no image / fallback) ───────────────────
+    const textResult = await callOpenRouter(openrouterKey, "openai/gpt-oss-120b", [
+      { role: "system", content: "Nutritionist AI. Respond with valid JSON only, no markdown." },
+      { role: "user", content: hasImage
+        ? `${prompt}\n(Note: image analysis unavailable, estimating from meal name and ingredients only)`
+        : prompt,
+      },
+    ]);
+
+    if (textResult.ok) {
+      const result = textResult.data;
+      if (hasImage) {
+        result.confidence = "low";
+        result.notes = "Photo analysis unavailable — estimated from meal name" + (ingredients ? " and ingredients" : " only");
+      }
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const ingredientText = ingredients
-      ? `\nIngredients/notes: ${ingredients}`
-      : "";
+    throw new Error(`All models failed. Last error: ${textResult.error}`);
 
-    const langNote = lang === "th"
-      ? "Respond in Thai."
-      : "Respond in English.";
-
-    userContent.push({
-      type: "text",
-      text: `Analyze this meal and estimate its nutritional content.
-
-Meal name: ${meal_name}${ingredientText}
-
-${image_base64 ? "Use the image to estimate portion size accurately." : "No image provided — estimate based on name and ingredients only."}
-
-Respond ONLY with a JSON object, no markdown, no explanation:
-{
-  "kcal": <number>,
-  "protein_g": <number>,
-  "carbs_g": <number>,
-  "fat_g": <number>,
-  "confidence": "high" | "medium" | "low",
-  "notes": "<brief explanation of estimate in 1 sentence>"
-}
-
-Rules:
-- All values are integers
-- Estimate for a typical single serving unless portion is visible in image
-- confidence = "high" if image + ingredients given, "medium" if image only or ingredients only, "low" if name only
-- notes: mention what affected accuracy (portion visible, ingredients known, etc.)
-${langNote}`,
-    });
-
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openrouterKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://fitdecide.app",
-        "X-Title": "FitDecide Food Analyzer",
-      },
-      body: JSON.stringify({
-        // openrouter/free — auto-selects best available free model
-        // smartly filters for vision-capable models when image is included
-        model: "openrouter/free",
-        messages: [
-          {
-            role: "system",
-            content: "You are a precise nutritionist AI. Always respond with valid JSON only. No markdown, no extra text.",
-          },
-          {
-            role: "user",
-            content: userContent,
-          },
-        ],
-        max_tokens: 300,
-        temperature: 0.2, // low temp for consistent nutrition estimates
-      }),
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`OpenRouter error: ${response.status} ${err}`);
-    }
-
-    const data = await response.json();
-    const rawText = data.choices?.[0]?.message?.content || "";
-
-    // Parse JSON — strip any accidental markdown fences
-    const cleaned = rawText.replace(/```json|```/g, "").trim();
-    let result;
-    try {
-      result = JSON.parse(cleaned);
-    } catch {
-      throw new Error(`Failed to parse AI response: ${rawText}`);
-    }
-
-    // Validate required fields
-    const { kcal, protein_g, carbs_g, fat_g, confidence, notes } = result;
-    if (typeof kcal !== "number" || typeof protein_g !== "number") {
-      throw new Error("Invalid nutrition data from AI");
-    }
-
-    return new Response(
-      JSON.stringify({ kcal, protein_g, carbs_g, fat_g, confidence, notes }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
   } catch (error) {
-    console.error("food-analyzer error:", error);
+    console.error("food-analyzer fatal:", error.message);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
+
+// ── Helper: call OpenRouter and parse JSON response ──────────────────────────
+async function callOpenRouter(
+  apiKey: string,
+  model: string,
+  messages: any[]
+): Promise<{ ok: true; data: any } | { ok: false; error: string }> {
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://fitdecide.app",
+        "X-Title": "FitDecide Food Analyzer",
+      },
+      body: JSON.stringify({ model, messages, max_tokens: 200, temperature: 0.1 }),
+    });
+
+    const text = await res.text();
+    console.log(`food-analyzer [${model}] status=${res.status} body=${text.slice(0, 300)}`);
+
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${text.slice(0, 200)}` };
+
+    const json = JSON.parse(text);
+    const raw = json.choices?.[0]?.message?.content || "";
+
+    // Strip markdown fences
+    const cleaned = raw.replace(/```json|```/g, "").trim();
+
+    // Try direct parse first
+    try {
+      const parsed = JSON.parse(cleaned);
+      if (typeof parsed.kcal === "number") return { ok: true, data: parsed };
+      return { ok: false, error: `Missing kcal in: ${cleaned}` };
+    } catch {
+      // Try extract JSON object from response
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        if (typeof parsed.kcal === "number") return { ok: true, data: parsed };
+      }
+      return { ok: false, error: `Cannot parse JSON from: ${cleaned.slice(0, 200)}` };
+    }
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+}
