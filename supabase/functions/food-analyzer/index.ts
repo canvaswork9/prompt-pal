@@ -26,10 +26,12 @@ Deno.serve(async (req) => {
     const userContent: any[] = [];
 
     if (image_base64 && image_mime) {
+      // Llama 3.2 Vision & most OpenRouter vision models use image_url format
       userContent.push({
         type: "image_url",
         image_url: {
           url: `data:${image_mime};base64,${image_base64}`,
+          detail: "low",  // low detail = faster + cheaper, sufficient for food recognition
         },
       });
     }
@@ -77,10 +79,9 @@ ${langNote}`,
         "X-Title": "FitDecide Food Analyzer",
       },
       body: JSON.stringify({
-        // gemini-flash supports vision and is free on OpenRouter
-        model: image_base64
-          ? "google/gemini-flash-1.5"
-          : "openai/gpt-oss-120b",
+        // openrouter/free — auto-selects best available free model
+        // smartly filters for vision-capable models when image is included
+        model: "openrouter/free",
         messages: [
           {
             role: "system",
