@@ -61,21 +61,45 @@ const FoodPhotoAnalyzer = ({ slot, onConfirm, onClose }: Props) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  // Resize image to max 800px and compress to ~50KB before encoding
+  const resizeImage = useCallback((dataUrl: string, mime: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 800;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
+          else { width = Math.round((width * MAX) / height); height = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+        // Compress to JPEG quality 0.75 — typically 30–80KB
+        const resized = canvas.toDataURL('image/jpeg', 0.75);
+        resolve(resized.split(',')[1]); // return base64 only
+      };
+      img.src = dataUrl;
+    });
+  }, []);
+
+  const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImageMime(file.type || 'image/jpeg');
+    setImageMime('image/jpeg'); // always output JPEG after resize
 
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const dataUrl = ev.target?.result as string;
       setImagePreview(dataUrl);
-      // Extract base64 part only (strip data:image/...;base64,)
-      const base64 = dataUrl.split(',')[1];
-      setImageBase64(base64);
+      // Resize + compress before storing base64
+      const resizedBase64 = await resizeImage(dataUrl, file.type);
+      setImageBase64(resizedBase64);
     };
     reader.readAsDataURL(file);
-  }, []);
+  }, [resizeImage]);
 
   const handleAnalyze = async () => {
     if (!mealName.trim()) {
