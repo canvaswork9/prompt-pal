@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import AddCustomMealDialog from '@/components/AddCustomMealDialog';
+import FoodPhotoAnalyzer, { type FoodMacros } from '@/components/FoodPhotoAnalyzer';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import DisabledFeaturePlaceholder from '@/components/DisabledFeaturePlaceholder';
 import SkeletonLoader from '@/components/SkeletonLoader';
@@ -40,6 +41,7 @@ const MealPage = () => {
   const [dbLogIds, setDbLogIds] = useState<Map<string, string>>(new Map());
   const [customMeals, setCustomMeals] = useState<Record<string, Meal[]>>({});
   const [reloadKey, setReloadKey] = useState(0);
+  const [photoSlot, setPhotoSlot] = useState<string | null>(null); // which slot is being scanned
   const [tdeeTargets, setTdeeTargets] = useState<CalorieTargets | null>(null);
   const [activeGoalWeeklyRate, setActiveGoalWeeklyRate] = useState<number | null>(null); // from weight_goals
 
@@ -199,6 +201,34 @@ const MealPage = () => {
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
 
+  // ── Food Photo Analyzer confirm handler ──────────────────────────────────
+  const handleFoodAnalyzerConfirm = async (macros: FoodMacros) => {
+    setPhotoSlot(null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Save directly to meal_logs as an eaten meal
+      const slot = photoSlot as string;
+      const { error } = await supabase.from('meal_logs').insert({
+        user_id:   user.id,
+        date:      todayStr(),
+        meal_slot: slot,
+        meal_name: macros.meal_name,
+        calories:  macros.kcal,
+        protein_g: macros.protein_g,
+        carbs_g:   macros.carbs_g,
+        fat_g:     macros.fat_g,
+        eaten:     true,
+      });
+
+      if (error) throw error;
+      setReloadKey(k => k + 1);
+    } catch (err: any) {
+      console.error('Food log error:', err);
+    }
+  };
+
   const toggleEaten = async (slot: MealSlotKey) => {
     const meal = getMealForSlot(slot);
     if (!meal) return;
@@ -281,8 +311,39 @@ const MealPage = () => {
           <h1 className="text-display text-2xl">Today's Nutrition Plan</h1>
           <p className="text-sm text-muted-foreground">Nutrition Mode: {modeLabel} · Target: ~{macros.calories} kcal</p>
         </div>
-        <AddCustomMealDialog onAdded={() => setReloadKey(k => k + 1)} />
+        <div className="flex items-center gap-2">
+          {/* 📷 Scan food button */}
+          <button
+            onClick={() => setPhotoSlot('snack')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 12px', borderRadius: 10,
+              background: 'rgba(108,99,255,0.1)',
+              border: '1px solid rgba(108,99,255,0.3)',
+              color: 'hsl(245 100% 70%)',
+              fontFamily: "'Barlow Condensed',sans-serif",
+              fontWeight: 700, fontSize: 12, letterSpacing: '0.06em',
+              textTransform: 'uppercase', cursor: 'pointer',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            Scan Food
+          </button>
+          <AddCustomMealDialog onAdded={() => setReloadKey(k => k + 1)} />
+        </div>
       </div>
+
+      {/* Food Photo Analyzer modal */}
+      {photoSlot && (
+        <FoodPhotoAnalyzer
+          slot={photoSlot}
+          onConfirm={handleFoodAnalyzerConfirm}
+          onClose={() => setPhotoSlot(null)}
+        />
+      )}
 
       <div className="bg-card rounded-xl p-5 card-shadow">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
@@ -388,6 +449,10 @@ const MealPage = () => {
                   <span className="font-mono text-[11px] text-muted-foreground">({currentIdxForSlot + 1}/{totalForSlot})</span>
                 </Button>
               )}
+              <Button variant="outline" size="sm" className="text-xs h-8 gap-1.5" onClick={() => setPhotoSlot(slot.key)}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span>Scan</span>
+              </Button>
             </div>
           </motion.div>
         );
